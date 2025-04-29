@@ -1,0 +1,13 @@
+{
+  "name": "gpu-sniper-playwright",
+  "version": "1.0.1",
+  "description": "Verbesserter Scraper für Kleinanzeigen.de mit Preisfix",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "playwright": "^1.52.0"
+  }
+}
