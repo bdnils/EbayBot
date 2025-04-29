@@ -15,13 +15,12 @@ function fetchOffers() {
                 const formattedPrice = offer.price > 0 ? `€${offer.price.toFixed(2)}` : "Preis nicht erkennbar";
 
                 div.innerHTML = `
-    <h2>${offer.title}</h2>
-    <p><strong>Preis:</strong> ${offer.price > 0 ? `€${offer.price.toFixed(2)} (${offer.priceType})` : "Preis nicht erkennbar"}</p>
-    <p><strong>Standort:</strong> ${offer.location}</p>
-    <p><strong>Score:</strong> ${offer.score}</p>
-    <a href="${offer.url}" target="_blank">Zum Angebot</a>
-`;
-
+                    <h2>${offer.title}</h2>
+                    <p><strong>Preis:</strong> ${formattedPrice}</p>
+                    <p><strong>Standort:</strong> ${offer.location}</p>
+                    <p><strong>Score:</strong> ${offer.score}</p>
+                    <a href="${offer.url}" target="_blank">Zum Angebot</a>
+                `;
                 container.appendChild(div);
             });
         });

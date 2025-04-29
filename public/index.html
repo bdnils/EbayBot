@@ -4,12 +4,30 @@
     <meta charset="UTF-8">
     <title>GPU Sniper</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="logo.png">
 </head>
 <body>
-    <h1>GPU Sniper – Beste Kleinanzeigen-Grafikkarten</h1>
-    <input type="text" id="query" placeholder="z. B. RTX 3060" />
-    <button onclick="fetchOffers()">Angebote aktualisieren</button>
-    <div id="results"></div>
+
+    <!-- ✅ Elegante Top-Bar -->
+    <header class="topbar">
+        <div class="nav-content">
+            <img src="logo.png" alt="GPU Sniper Logo" class="nav-logo">
+            <nav class="nav-links">
+                <!-- Optional: Navigationslinks -->
+                <!-- <a href="#">Home</a>
+                <a href="#">Kontakt</a> -->
+            </nav>
+        </div>
+    </header>
+
+    <!-- ✅ Inhalt zentriert in einem Wrapper -->
+    <div class="wrapper">
+        <h1>GPU Sniper – Beste Kleinanzeigen-Grafikkarten</h1>
+        <input type="text" id="query" placeholder="z. B. RTX 3060" />
+        <button onclick="fetchOffers()">Angebote aktualisieren</button>
+        <div id="results"></div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
