@@ -5,11 +5,11 @@ const PORT = 3000;
 
 app.use(express.static('public'));
 
-// Hilfsfunktion: Preis aus String extrahieren
+// Hilfsfunktion: Preis aus Text extrahieren (verbessert für Tausendertrennungen)
 function extractPrice(text) {
-    const match = text.match(/(\d{1,4}(?:[.,]\d{1,2})?)\s*€/);
+    const match = text.match(/([\d\.]+)\s*€/);
     if (match) {
-        return parseFloat(match[1].replace(",", "."));
+        return parseFloat(match[1].replace(/\./g, '').replace(",", "."));
     }
     return null;
 }
