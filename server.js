@@ -5,7 +5,7 @@ const PORT = 3000;
 
 app.use(express.static('public'));
 
-// Hilfsfunktion: Preis aus Text extrahieren (verbessert für Tausendertrennungen)
+// Preis extrahieren
 function extractPrice(text) {
     const match = text.match(/([\d\.]+)\s*€/);
     if (match) {
@@ -14,13 +14,28 @@ function extractPrice(text) {
     return null;
 }
 
-// Hilfsfunktion: Preis-Typ (VB oder Festpreis) erkennen
+// Preis-Typ erkennen
 function extractPriceType(text) {
     if (text.toLowerCase().includes("vb")) {
         return "VB";
     } else {
         return "Festpreis";
     }
+}
+
+// Erkennung: Ist es eine Grafikkarte?
+function isGraphicCardOffer(title) {
+    const titleLower = title.toLowerCase();
+
+    const include = [
+        "grafikkarte", "gpu", "geforce", "gtx", "rtx", "rx", "radeon", "intel arc", "a750", "a770", "arc a"
+    ];
+    const exclude = [
+        "gaming pc", "rechner", "laptop", "notebook", "setup", "system", "komplett", "bundle", "monitor", "mainboard", "computer", "tower"
+    ];
+
+    return include.some(word => titleLower.includes(word)) &&
+           !exclude.some(word => titleLower.includes(word));
 }
 
 app.get('/scrape', async (req, res) => {
@@ -45,30 +60,52 @@ app.get('/scrape', async (req, res) => {
             const location = card.querySelector('.aditem-main--top')?.innerText ?? "";
             const href = card.querySelector('a.ellipsis')?.getAttribute('href') ?? "";
             const url = href.startsWith("http") ? href : 'https://www.kleinanzeigen.de' + href;
-
             const middleText = card.querySelector('.aditem-main--middle')?.innerText ?? "";
+            const image = card.querySelector('img')?.src ?? "";
 
-            list.push({ title, middleText, location, url });
+            list.push({ title, middleText, location, url, image });
         });
 
         return list;
     });
 
-    const finalOffers = offers.map(offer => {
+    await browser.close();
+
+    let finalOffers = offers.map(offer => {
         const price = extractPrice(offer.middleText);
         const priceType = extractPriceType(offer.middleText);
-        const score = price ? (8 / price * 10).toFixed(2) : 0;
         return {
             title: offer.title,
             price: price ?? 0,
             priceType: price ? priceType : "unbekannt",
             location: offer.location,
             url: offer.url,
-            score: score
+            image: offer.image
         };
     });
 
-    await browser.close();
+    const graphicCardOffers = finalOffers.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
+
+    if (graphicCardOffers.length > 0) {
+        const prices = graphicCardOffers.map(o => o.price);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+
+        finalOffers = finalOffers.map(offer => {
+            if (offer.price > 0 && isGraphicCardOffer(offer.title) && maxPrice !== minPrice) {
+                offer.score = Math.round(((maxPrice - offer.price) / (maxPrice - minPrice)) * 100);
+            } else {
+                offer.score = 0;
+            }
+            return offer;
+        });
+    } else {
+        finalOffers = finalOffers.map(offer => {
+            offer.score = 0;
+            return offer;
+        });
+    }
+
     res.json(finalOffers.sort((a, b) => b.score - a.score));
 });
 
