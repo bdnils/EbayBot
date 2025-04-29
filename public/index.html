@@ -13,16 +13,17 @@
         <div class="nav-content">
             <img src="logo.png" alt="GPU Sniper Logo" class="nav-logo">
             <nav class="nav-links">
-                <!-- Optional: Navigationslinks -->
-                <!-- <a href="#">Home</a>
-                <a href="#">Kontakt</a> -->
+                <a href="#" onclick="quickSearch('RTX 3060')">RTX 3060</a>
+                <a href="#" onclick="quickSearch('RTX 4090')">RTX 4090</a>
+                <a href="#" onclick="quickSearch('RX 6700 XT')">RX 6700 XT</a>
+                <a href="#" onclick="quickSearch('RTX 3070')">RTX 3070</a>
             </nav>
         </div>
     </header>
 
     <!-- ✅ Inhalt zentriert in einem Wrapper -->
     <div class="wrapper">
-        <h1>GPU Sniper – Beste Kleinanzeigen-Grafikkarten</h1>
+        <h1>GPU Sniper</h1>
         <input type="text" id="query" placeholder="z. B. RTX 3060" />
         <button onclick="fetchOffers()">Angebote aktualisieren</button>
         <div id="results"></div>
