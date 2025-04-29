@@ -5,7 +5,18 @@
     <title>GPU Sniper</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/png" href="logo.png">
+    <script src="script.js"></script>
 </head>
+<script>
+    function quickSearch(keyword) {
+        document.getElementById('query').value = keyword;
+        if (typeof fetchOffers === "function") {
+            fetchOffers();
+        } else {
+            console.error("fetchOffers() ist nicht definiert.");
+        }
+    }
+</script>
 <body>
 
     <!-- ✅ Elegante Top-Bar -->
@@ -29,6 +40,6 @@
         <div id="results"></div>
     </div>
 
-    <script src="script.js"></script>
+    
 </body>
 </html>
