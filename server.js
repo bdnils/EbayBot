@@ -14,6 +14,15 @@ function extractPrice(text) {
     return null;
 }
 
+// Hilfsfunktion: Preis-Typ (VB oder Festpreis) erkennen
+function extractPriceType(text) {
+    if (text.toLowerCase().includes("vb")) {
+        return "VB";
+    } else {
+        return "Festpreis";
+    }
+}
+
 app.get('/scrape', async (req, res) => {
     const query = req.query.query || "grafikkarte";
     const search = query.trim().replace(/\s+/g, '-');
@@ -37,7 +46,6 @@ app.get('/scrape', async (req, res) => {
             const href = card.querySelector('a.ellipsis')?.getAttribute('href') ?? "";
             const url = href.startsWith("http") ? href : 'https://www.kleinanzeigen.de' + href;
 
-            // Jetzt: GANZEN Text nehmen!
             const middleText = card.querySelector('.aditem-main--middle')?.innerText ?? "";
 
             list.push({ title, middleText, location, url });
@@ -46,13 +54,14 @@ app.get('/scrape', async (req, res) => {
         return list;
     });
 
-    // Serverseitig Preis extrahieren!
     const finalOffers = offers.map(offer => {
         const price = extractPrice(offer.middleText);
+        const priceType = extractPriceType(offer.middleText);
         const score = price ? (8 / price * 10).toFixed(2) : 0;
         return {
             title: offer.title,
             price: price ?? 0,
+            priceType: price ? priceType : "unbekannt",
             location: offer.location,
             url: offer.url,
             score: score
