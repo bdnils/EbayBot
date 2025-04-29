@@ -6,10 +6,6 @@ GPU Sniper (Playwright-Version mit verbessertem Preisparser)
      > npm install
      > npx playwright install
 
-1.1. In Ordner Verzeichnis CMD öffnen und installieren -->
-     > npm install playwright
-     > npx playwright install
-
 2. Starten:
    > node server.js
 
