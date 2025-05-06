@@ -71,7 +71,13 @@ app.get('/scrape', async (req, res) => {
 
     await browser.close();
 
-    let finalOffers = offers.map(offer => {
+    // "Suche"-Filter
+    let filteredOffers = offers.filter(offer =>
+        !offer.title.toLowerCase().includes("suche")
+    );
+
+    // Preise und Infos extrahieren
+    let finalOffers = filteredOffers.map(offer => {
         const price = extractPrice(offer.middleText);
         const priceType = extractPriceType(offer.middleText);
         return {
@@ -84,29 +90,45 @@ app.get('/scrape', async (req, res) => {
         };
     });
 
-    const graphicCardOffers = finalOffers.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
+    // In zwei Kategorien aufteilen
+    const gpuOffers = finalOffers.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
+    const otherOffers = finalOffers.filter(o => o.price > 0 && !isGraphicCardOffer(o.title));
 
-    if (graphicCardOffers.length > 0) {
-        const prices = graphicCardOffers.map(o => o.price);
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
+    // GPU Scores berechnen
+    if (gpuOffers.length > 1) {
+        const gpuPrices = gpuOffers.map(o => o.price);
+        const minPrice = Math.min(...gpuPrices);
+        const maxPrice = Math.max(...gpuPrices);
 
-        finalOffers = finalOffers.map(offer => {
-            if (offer.price > 0 && isGraphicCardOffer(offer.title) && maxPrice !== minPrice) {
-                offer.score = Math.round(((maxPrice - offer.price) / (maxPrice - minPrice)) * 100);
-            } else {
-                offer.score = 0;
-            }
-            return offer;
-        });
-    } else {
-        finalOffers = finalOffers.map(offer => {
-            offer.score = 0;
-            return offer;
+        gpuOffers.forEach(offer => {
+            offer.score = maxPrice !== minPrice
+                ? Math.round(((maxPrice - offer.price) / (maxPrice - minPrice)) * 100)
+                : 0;
         });
     }
 
-    res.json(finalOffers.sort((a, b) => b.score - a.score));
+    // Andere Scores berechnen
+    if (otherOffers.length > 1) {
+        const otherPrices = otherOffers.map(o => o.price);
+        const minPrice = Math.min(...otherPrices);
+        const maxPrice = Math.max(...otherPrices);
+
+        otherOffers.forEach(offer => {
+            offer.score = maxPrice !== minPrice
+                ? Math.round(((maxPrice - offer.price) / (maxPrice - minPrice)) * 100)
+                : 0;
+        });
+    }
+
+    // Score für restliche Angebote ohne Preis
+    const remaining = finalOffers.filter(o => o.price === 0);
+    remaining.forEach(offer => offer.score = 0);
+
+    // Alle zusammenführen
+    const allOffers = [...gpuOffers, ...otherOffers, ...remaining];
+
+    // Nach Score sortiert zurückgeben
+    res.json(allOffers.sort((a, b) => b.score - a.score));
 });
 
 app.listen(PORT, () => {
