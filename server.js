@@ -41,38 +41,54 @@ function isGraphicCardOffer(title) {
 app.get('/scrape', async (req, res) => {
     const query = req.query.query || "grafikkarte";
     const search = query.trim().replace(/\s+/g, '-');
-    const url = `https://www.kleinanzeigen.de/s-${search}/k0`;
 
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36'
     });
 
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
+    let allOffers = [];
 
-    const offers = await page.evaluate(() => {
-        const cards = document.querySelectorAll('article.aditem');
-        const list = [];
+    for (let pageNum = 1; pageNum <= 10; pageNum++) {  
+        const url = `https://www.kleinanzeigen.de/s-seite:${pageNum}/${search}/k0`;  // Seite-Nummer anpassen
+        console.log(`🔍 Lade Seite ${pageNum}: ${url}`);
+        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(3000); // 3 Sekunden warten
 
-        cards.forEach(card => {
-            const title = card.querySelector('a.ellipsis')?.innerText ?? "";
-            const location = card.querySelector('.aditem-main--top')?.innerText ?? "";
-            const href = card.querySelector('a.ellipsis')?.getAttribute('href') ?? "";
-            const url = href.startsWith("http") ? href : 'https://www.kleinanzeigen.de' + href;
-            const middleText = card.querySelector('.aditem-main--middle')?.innerText ?? "";
-            const image = card.querySelector('img')?.src ?? "";
+        const offers = await page.evaluate(() => {
+            const cards = document.querySelectorAll('article.aditem');
+            const list = [];
 
-            list.push({ title, middleText, location, url, image });
+            cards.forEach(card => {
+                const title = card.querySelector('a.ellipsis')?.innerText ?? "";
+                const location = card.querySelector('.aditem-main--top')?.innerText ?? "";
+                const href = card.querySelector('a.ellipsis')?.getAttribute('href') ?? "";
+                const url = href.startsWith("http") ? href : 'https://www.kleinanzeigen.de' + href;
+                const middleText = card.querySelector('.aditem-main--middle')?.innerText ?? "";
+                const image = card.querySelector('img')?.src ?? "";
+
+                list.push({ title, middleText, location, url, image });
+            });
+
+            return list;
         });
 
-        return list;
-    });
+        allOffers = allOffers.concat(offers);
+    }
 
     await browser.close();
 
+    // 🔁 Duplikate entfernen (basierend auf URL)
+    const uniqueOffersMap = new Map();
+    allOffers.forEach(offer => {
+        if (!uniqueOffersMap.has(offer.url)) {
+            uniqueOffersMap.set(offer.url, offer);
+        }
+    });
+    allOffers = Array.from(uniqueOffersMap.values());
+
     // "Suche"-Filter
-    let filteredOffers = offers.filter(offer =>
+    let filteredOffers = allOffers.filter(offer =>
         !offer.title.toLowerCase().includes("suche")
     );
 
@@ -120,15 +136,15 @@ app.get('/scrape', async (req, res) => {
         });
     }
 
-    // Score für restliche Angebote ohne Preis
+    // Angebote ohne Preis
     const remaining = finalOffers.filter(o => o.price === 0);
     remaining.forEach(offer => offer.score = 0);
 
     // Alle zusammenführen
-    const allOffers = [...gpuOffers, ...otherOffers, ...remaining];
+    const allSorted = [...gpuOffers, ...otherOffers, ...remaining];
 
     // Nach Score sortiert zurückgeben
-    res.json(allOffers.sort((a, b) => b.score - a.score));
+    res.json(allSorted.sort((a, b) => b.score - a.score));
 });
 
 app.listen(PORT, () => {
