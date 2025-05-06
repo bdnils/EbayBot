@@ -1,12 +1,14 @@
 function fetchOffers() {
     const query = document.getElementById("query").value;
+    const loader = document.getElementById("loader");
+    const container = document.getElementById("results");
+
+    loader.style.display = 'block';    // Loader anzeigen
+    container.innerHTML = '';          // Ergebnisse zurücksetzen
 
     fetch('/scrape?query=' + encodeURIComponent(query))
         .then(res => res.json())
         .then(data => {
-            const container = document.getElementById("results");
-            container.innerHTML = '';
-
             data.forEach(offer => {
                 const div = document.createElement("div");
                 div.className = "card";
@@ -32,5 +34,12 @@ function fetchOffers() {
                 `;
                 container.appendChild(div);
             });
+        })
+        .catch(err => {
+            container.innerHTML = '<p>Fehler beim Laden der Angebote.</p>';
+            console.error(err);
+        })
+        .finally(() => {
+            loader.style.display = 'none'; // Loader wieder ausblenden
         });
 }

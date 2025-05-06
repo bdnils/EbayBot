@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>GPU Sniper</title>
+    <title>Kleinanzeigen Sniper</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/png" href="logo.png">
     <script src="script.js"></script>
@@ -34,9 +34,10 @@
 
     <!-- ✅ Inhalt zentriert in einem Wrapper -->
     <div class="wrapper">
-        <h1>GPU Sniper</h1>
+        <h1>Kleinanzeigen Sniper</h1>
         <input type="text" id="query" placeholder="z. B. RTX 3060" />
         <button onclick="fetchOffers()">Angebote aktualisieren</button>
+        <div id="loader" class="loader" style="display: none;"></div>
         <div id="results"></div>
     </div>
 
