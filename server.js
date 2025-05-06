@@ -5,6 +5,15 @@ const PORT = 3000;
 
 app.use(express.static('public'));
 
+let currentScraping = null;
+
+// 🗺️ Mapping von PLZ zu Ort-ID
+const locationMap = {
+    "46485": "1866",
+    "46483": "1867",
+    "46514": "1868"
+};
+
 // Preis extrahieren
 function extractPrice(text) {
     const match = text.match(/([\d\.]+)\s*€/);
@@ -26,34 +35,69 @@ function extractPriceType(text) {
 // Erkennung: Ist es eine Grafikkarte?
 function isGraphicCardOffer(title) {
     const titleLower = title.toLowerCase();
-
-    const include = [
-        "grafikkarte", "gpu", "geforce", "gtx", "rtx", "rx", "radeon", "intel arc", "a750", "a770", "arc a"
-    ];
-    const exclude = [
-        "gaming pc", "rechner", "laptop", "notebook", "setup", "system", "komplett", "bundle", "monitor", "mainboard", "computer", "tower"
-    ];
+    const include = ["grafikkarte", "gpu", "geforce", "gtx", "rtx", "rx", "radeon", "intel arc", "a750", "a770", "arc a"];
+    const exclude = ["gaming pc", "rechner", "laptop", "notebook", "setup", "system", "komplett", "bundle", "monitor", "mainboard", "computer", "tower"];
 
     return include.some(word => titleLower.includes(word)) &&
            !exclude.some(word => titleLower.includes(word));
 }
 
+// Route zum Scraping
 app.get('/scrape', async (req, res) => {
+    if (currentScraping) {
+        return res.status(409).json({ message: 'Eine Suche läuft bereits.' });
+    }
+
+    const abortController = new AbortController();
+    currentScraping = abortController;
+
     const query = req.query.query || "grafikkarte";
     const search = query.trim().replace(/\s+/g, '-');
+    const pagesToScrape = Math.min(parseInt(req.query.pages) || 10, 50);
+
+    const plz = req.query.plz || "46485";
+    const radius = req.query.radius || "0";
+    const ortId = locationMap[plz];
+
+    if (!ortId) {
+        return res.status(400).json({ message: `Keine Ort-ID für PLZ ${plz} gefunden.` });
+    }
 
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36'
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/123 Safari/537.36'
     });
 
     let allOffers = [];
 
-    for (let pageNum = 1; pageNum <= 10; pageNum++) {  
-        const url = `https://www.kleinanzeigen.de/s-seite:${pageNum}/${search}/k0`;  // Seite-Nummer anpassen
+    for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
+        let url = '';
+
+if (req.query.plz && locationMap[req.query.plz]) {
+    const ortId = locationMap[req.query.plz];
+    url = `https://www.kleinanzeigen.de/s-${req.query.plz}/seite:${pageNum}/${search}/k0l${ortId}r${radius}`;
+} else {
+    url = `https://www.kleinanzeigen.de/s-seite:${pageNum}/${search}/k0`;
+}
         console.log(`🔍 Lade Seite ${pageNum}: ${url}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(3000); // 3 Sekunden warten
+
+        try {
+            await page.goto(url, {
+                waitUntil: 'domcontentloaded',
+                timeout: 15000
+            });
+        } catch (err) {
+            if (abortController.signal.aborted) {
+                console.log("❌ Scraping wurde abgebrochen");
+                await browser.close();
+                currentScraping = null;
+                return res.status(499).json({ message: 'Suche abgebrochen.' });
+            } else {
+                throw err;
+            }
+        }
+
+        await page.waitForTimeout(3000);
 
         const offers = await page.evaluate(() => {
             const cards = document.querySelectorAll('article.aditem');
@@ -73,12 +117,17 @@ app.get('/scrape', async (req, res) => {
             return list;
         });
 
+        if (offers.length === 0) {
+            console.log(`🚫 Keine Angebote mehr auf Seite ${pageNum}. Beende Suche.`);
+            break;
+        }
+
         allOffers = allOffers.concat(offers);
     }
 
     await browser.close();
+    currentScraping = null;
 
-    // 🔁 Duplikate entfernen (basierend auf URL)
     const uniqueOffersMap = new Map();
     allOffers.forEach(offer => {
         if (!uniqueOffersMap.has(offer.url)) {
@@ -87,12 +136,10 @@ app.get('/scrape', async (req, res) => {
     });
     allOffers = Array.from(uniqueOffersMap.values());
 
-    // "Suche"-Filter
     let filteredOffers = allOffers.filter(offer =>
         !offer.title.toLowerCase().includes("suche")
     );
 
-    // Preise und Infos extrahieren
     let finalOffers = filteredOffers.map(offer => {
         const price = extractPrice(offer.middleText);
         const priceType = extractPriceType(offer.middleText);
@@ -106,45 +153,37 @@ app.get('/scrape', async (req, res) => {
         };
     });
 
-    // In zwei Kategorien aufteilen
     const gpuOffers = finalOffers.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
     const otherOffers = finalOffers.filter(o => o.price > 0 && !isGraphicCardOffer(o.title));
 
-    // GPU Scores berechnen
     if (gpuOffers.length > 1) {
-        const gpuPrices = gpuOffers.map(o => o.price);
-        const minPrice = Math.min(...gpuPrices);
-        const maxPrice = Math.max(...gpuPrices);
-
-        gpuOffers.forEach(offer => {
-            offer.score = maxPrice !== minPrice
-                ? Math.round(((maxPrice - offer.price) / (maxPrice - minPrice)) * 100)
-                : 0;
-        });
+        const prices = gpuOffers.map(o => o.price);
+        const min = Math.min(...prices), max = Math.max(...prices);
+        gpuOffers.forEach(o => o.score = (max !== min) ? Math.round(((max - o.price) / (max - min)) * 100) : 0);
     }
 
-    // Andere Scores berechnen
     if (otherOffers.length > 1) {
-        const otherPrices = otherOffers.map(o => o.price);
-        const minPrice = Math.min(...otherPrices);
-        const maxPrice = Math.max(...otherPrices);
-
-        otherOffers.forEach(offer => {
-            offer.score = maxPrice !== minPrice
-                ? Math.round(((maxPrice - offer.price) / (maxPrice - minPrice)) * 100)
-                : 0;
-        });
+        const prices = otherOffers.map(o => o.price);
+        const min = Math.min(...prices), max = Math.max(...prices);
+        otherOffers.forEach(o => o.score = (max !== min) ? Math.round(((max - o.price) / (max - min)) * 100) : 0);
     }
 
-    // Angebote ohne Preis
     const remaining = finalOffers.filter(o => o.price === 0);
-    remaining.forEach(offer => offer.score = 0);
+    remaining.forEach(o => o.score = 0);
 
-    // Alle zusammenführen
     const allSorted = [...gpuOffers, ...otherOffers, ...remaining];
-
-    // Nach Score sortiert zurückgeben
     res.json(allSorted.sort((a, b) => b.score - a.score));
+});
+
+// Abbrechen-Route
+app.post('/cancel', (req, res) => {
+    if (currentScraping) {
+        currentScraping.abort();
+        currentScraping = null;
+        res.json({ message: 'Suche abgebrochen.' });
+    } else {
+        res.status(404).json({ message: 'Keine aktive Suche.' });
+    }
 });
 
 app.listen(PORT, () => {

@@ -46,10 +46,17 @@
         </label>
         <br><br>
         <button onclick="fetchOffers()">Angebote aktualisieren</button>
+        <button onclick="cancelSearch()">Suche abbrechen</button> <!-- Abbrechen-Button -->
 
-        <div id="loader" class="loader" style="display: none;"></div>
+        <!-- Loader -->
+        <div id="loader" class="loader" style="display: none;">
+            <div class="spinner"></div>
+            <p>🔄 Suche läuft...</p>
+        </div>
+
         <div id="results"></div>
     </div>
 
+    
 </body>
 </html>
