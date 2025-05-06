@@ -5,21 +5,11 @@
     <title>Kleinanzeigen Sniper</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/png" href="logo.png">
-    <script src="script.js"></script>
+    <script src="script.js" defer></script> <!-- defer sorgt dafür, dass das Script nach dem Laden der Seite ausgeführt wird -->
 </head>
-<script>
-    function quickSearch(keyword) {
-        document.getElementById('query').value = keyword;
-        if (typeof fetchOffers === "function") {
-            fetchOffers();
-        } else {
-            console.error("fetchOffers() ist nicht definiert.");
-        }
-    }
-</script>
 <body>
 
-    <!-- ✅ Elegante Top-Bar -->
+    <!-- ✅ Top-Bar -->
     <header class="topbar">
         <div class="nav-content">
             <img src="logo.png" alt="GPU Sniper Logo" class="nav-logo">
@@ -32,15 +22,34 @@
         </div>
     </header>
 
-    <!-- ✅ Inhalt zentriert in einem Wrapper -->
+    <!-- ✅ Inhalt -->
     <div class="wrapper">
         <h1>Kleinanzeigen Sniper</h1>
-        <input type="text" id="query" placeholder="z. B. RTX 3060" />
+
+        <input type="text" id="query" placeholder="z. B. RTX 3060">
+        <input type="text" id="plz" placeholder="PLZ (optional)">
+        <select id="radius">
+            <option value="5">+5 km</option>
+            <option value="10">+10 km</option>
+            <option value="20" selected>+20 km</option>
+            <option value="50">+50 km</option>
+            <option value="100">+100 km</option>
+        </select>
+        <br>
+        <input type="number" id="priceLimit" placeholder="Max Preis (optional)">
+        <input type="number" id="pages" placeholder="Seiten Anzahl">
+        <input type="email" id="email" placeholder="E-Mail (für Benachrichtigung)">
+        <br>
+        <label>
+            <input type="checkbox" onchange="toggleAutoSearch(this)">
+            Auto-Suche alle 5 Minuten aktivieren
+        </label>
+        <br><br>
         <button onclick="fetchOffers()">Angebote aktualisieren</button>
+
         <div id="loader" class="loader" style="display: none;"></div>
         <div id="results"></div>
     </div>
 
-    
 </body>
 </html>
