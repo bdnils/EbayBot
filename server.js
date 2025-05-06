@@ -49,7 +49,8 @@ app.get('/scrape', async (req, res) => {
 
     let allOffers = [];
 
-    for (let pageNum = 1; pageNum <= 10; pageNum++) {  
+    const pagesToScrape = parseInt(req.query.pages) || 10; // Standardwert 10, wenn nichts übergeben
+for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {  
         const url = `https://www.kleinanzeigen.de/s-seite:${pageNum}/${search}/k0`;  // Seite-Nummer anpassen
         console.log(`🔍 Lade Seite ${pageNum}: ${url}`);
         await page.goto(url, { waitUntil: 'domcontentloaded' });
