@@ -69,10 +69,22 @@ app.get('/scrape', async (req, res) => {
     });
 
     let allOffers = [];
-
+    if (abortController.signal.aborted) {
+        console.log("❌ Scraping wurde abgebrochen (vor Seitenaufruf)");
+        await browser.close();
+        currentScraping = null;
+        return res.status(499).json({ message: 'Suche abgebrochen.' });
+    }
+    
     for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
         let url = '';
 
+        if (abortController.signal.aborted) {
+            console.log("❌ Scraping wurde abgebrochen (vor Seitenaufruf)");
+            await browser.close();
+            currentScraping = null;
+            return res.status(499).json({ message: 'Suche abgebrochen.' });
+        }
 if (req.query.plz && locationMap[req.query.plz]) {
     const ortId = locationMap[req.query.plz];
     url = `https://www.kleinanzeigen.de/s-${req.query.plz}/seite:${pageNum}/${search}/k0l${ortId}r${radius}`;
@@ -136,9 +148,12 @@ if (req.query.plz && locationMap[req.query.plz]) {
     });
     allOffers = Array.from(uniqueOffersMap.values());
 
-    let filteredOffers = allOffers.filter(offer =>
-        !offer.title.toLowerCase().includes("suche")
-    );
+    const unwantedKeywords = ["suche", "tausche", "tauschen", "miete", "mieten", "verleihen","defekt","kaputt"];
+    let filteredOffers = allOffers.filter(offer => {
+        const title = offer.title.toLowerCase();
+        return !unwantedKeywords.some(keyword => title.includes(keyword));
+    });
+    
 
     let finalOffers = filteredOffers.map(offer => {
         const price = extractPrice(offer.middleText);

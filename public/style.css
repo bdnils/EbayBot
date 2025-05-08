@@ -157,3 +157,48 @@ button:hover {
     100% { transform: rotate(360deg); }
 }
 
+.form-container {
+    display: flex;
+    flex-wrap: nowrap; /* Keine Umbrüche */
+    justify-content: center;
+    gap: 16px;
+    overflow-x: auto; /* Scrollbar bei kleinen Bildschirmen */
+    padding-bottom: 16px;
+}
+
+
+input, select {
+    padding: 14px 20px;
+    font-size: 18px;
+    width: 250px; /* oder eine feste Breite */
+    border: 1px solid #d6d6d6;
+    border-radius: 12px;
+    background: #f5f5f7;
+    transition: border-color 0.3s, background 0.3s;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+select:focus, input:focus {
+    outline: none;
+    border-color: #0071e3;
+    background: #ffffff;
+}
+
+select {
+    background-image: url("data:image/svg+xml;utf8,<svg fill='gray' height='20' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-size: 16px;
+    padding-right: 40px; /* Platz für das Icon */
+    cursor: pointer;
+}
+input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+    vertical-align: middle;
+    padding: 0;
+}
+
