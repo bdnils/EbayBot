@@ -1,3 +1,5 @@
+// GANZE DATEI MIT ÄNDERUNGEN
+
 const express = require('express');
 const { chromium } = require('playwright');
 const app = express();
@@ -7,14 +9,13 @@ app.use(express.static('public'));
 
 let currentScraping = null;
 
-// 🗺️ Mapping von PLZ zu Ort-ID
 const locationMap = {
     "46485": "1866",
     "46483": "1867",
-    "46514": "1868"
+    "46514": "1868",
+    "46487": "1868",
 };
 
-// Preis extrahieren
 function extractPrice(text) {
     const match = text.match(/([\d\.]+)\s*€/);
     if (match) {
@@ -23,7 +24,6 @@ function extractPrice(text) {
     return null;
 }
 
-// Preis-Typ erkennen
 function extractPriceType(text) {
     if (text.toLowerCase().includes("vb")) {
         return "VB";
@@ -32,17 +32,12 @@ function extractPriceType(text) {
     }
 }
 
-// Erkennung: Ist es eine Grafikkarte?
 function isGraphicCardOffer(title) {
     const titleLower = title.toLowerCase();
     const include = ["grafikkarte", "gpu", "geforce", "gtx", "rtx", "rx", "radeon", "intel arc", "a750", "a770", "arc a"];
-    const exclude = ["gaming pc", "rechner", "laptop", "notebook", "setup", "system", "komplett", "bundle", "monitor", "mainboard", "computer", "tower"];
-
-    return include.some(word => titleLower.includes(word)) &&
-           !exclude.some(word => titleLower.includes(word));
+    return include.some(word => titleLower.includes(word));
 }
 
-// Route zum Scraping
 app.get('/scrape', async (req, res) => {
     if (currentScraping) {
         return res.status(409).json({ message: 'Eine Suche läuft bereits.' });
@@ -63,34 +58,29 @@ app.get('/scrape', async (req, res) => {
         return res.status(400).json({ message: `Keine Ort-ID für PLZ ${plz} gefunden.` });
     }
 
+    // ✨ Ausschlusswörter vom Client lesen
+    const rawExcludes = req.query.excludedWords || '';
+    const excludedWords = rawExcludes.split(',').map(w => w.trim().toLowerCase()).filter(Boolean);
+
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/123 Safari/537.36'
     });
 
     let allOffers = [];
-    if (abortController.signal.aborted) {
-        console.log("❌ Scraping wurde abgebrochen (vor Seitenaufruf)");
-        await browser.close();
-        currentScraping = null;
-        return res.status(499).json({ message: 'Suche abgebrochen.' });
-    }
-    
-    for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
-        let url = '';
 
+    for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
         if (abortController.signal.aborted) {
-            console.log("❌ Scraping wurde abgebrochen (vor Seitenaufruf)");
+            console.log("❌ Scraping wurde abgebrochen");
             await browser.close();
             currentScraping = null;
             return res.status(499).json({ message: 'Suche abgebrochen.' });
         }
-if (req.query.plz && locationMap[req.query.plz]) {
-    const ortId = locationMap[req.query.plz];
-    url = `https://www.kleinanzeigen.de/s-${req.query.plz}/seite:${pageNum}/${search}/k0l${ortId}r${radius}`;
-} else {
-    url = `https://www.kleinanzeigen.de/s-seite:${pageNum}/${search}/k0`;
-}
+
+        const url = req.query.plz && locationMap[req.query.plz]
+            ? `https://www.kleinanzeigen.de/s-${req.query.plz}/seite:${pageNum}/${search}/k0l${ortId}r${radius}`
+            : `https://www.kleinanzeigen.de/s-seite:${pageNum}/${search}/k0`;
+
         console.log(`🔍 Lade Seite ${pageNum}: ${url}`);
 
         try {
@@ -100,7 +90,6 @@ if (req.query.plz && locationMap[req.query.plz]) {
             });
         } catch (err) {
             if (abortController.signal.aborted) {
-                console.log("❌ Scraping wurde abgebrochen");
                 await browser.close();
                 currentScraping = null;
                 return res.status(499).json({ message: 'Suche abgebrochen.' });
@@ -140,6 +129,7 @@ if (req.query.plz && locationMap[req.query.plz]) {
     await browser.close();
     currentScraping = null;
 
+    // Dubletten entfernen
     const uniqueOffersMap = new Map();
     allOffers.forEach(offer => {
         if (!uniqueOffersMap.has(offer.url)) {
@@ -148,13 +138,13 @@ if (req.query.plz && locationMap[req.query.plz]) {
     });
     allOffers = Array.from(uniqueOffersMap.values());
 
-    const unwantedKeywords = ["suche", "tausche", "tauschen", "miete", "mieten", "verleihen","defekt","kaputt"];
+    // ✨ Ausschlussfilter anwenden
     let filteredOffers = allOffers.filter(offer => {
         const title = offer.title.toLowerCase();
-        return !unwantedKeywords.some(keyword => title.includes(keyword));
+        return !excludedWords.some(keyword => title.includes(keyword));
     });
-    
 
+    // Preis und Metadaten zuordnen
     let finalOffers = filteredOffers.map(offer => {
         const price = extractPrice(offer.middleText);
         const priceType = extractPriceType(offer.middleText);
@@ -168,20 +158,22 @@ if (req.query.plz && locationMap[req.query.plz]) {
         };
     });
 
+    // Bewertung berechnen (Score)
     const gpuOffers = finalOffers.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
     const otherOffers = finalOffers.filter(o => o.price > 0 && !isGraphicCardOffer(o.title));
 
-    if (gpuOffers.length > 1) {
-        const prices = gpuOffers.map(o => o.price);
-        const min = Math.min(...prices), max = Math.max(...prices);
-        gpuOffers.forEach(o => o.score = (max !== min) ? Math.round(((max - o.price) / (max - min)) * 100) : 0);
-    }
+    const assignScore = (offers) => {
+        if (offers.length > 1) {
+            const prices = offers.map(o => o.price);
+            const min = Math.min(...prices), max = Math.max(...prices);
+            offers.forEach(o => o.score = (max !== min) ? Math.round(((max - o.price) / (max - min)) * 100) : 0);
+        } else {
+            offers.forEach(o => o.score = 0);
+        }
+    };
 
-    if (otherOffers.length > 1) {
-        const prices = otherOffers.map(o => o.price);
-        const min = Math.min(...prices), max = Math.max(...prices);
-        otherOffers.forEach(o => o.score = (max !== min) ? Math.round(((max - o.price) / (max - min)) * 100) : 0);
-    }
+    assignScore(gpuOffers);
+    assignScore(otherOffers);
 
     const remaining = finalOffers.filter(o => o.price === 0);
     remaining.forEach(o => o.score = 0);
@@ -190,7 +182,6 @@ if (req.query.plz && locationMap[req.query.plz]) {
     res.json(allSorted.sort((a, b) => b.score - a.score));
 });
 
-// Abbrechen-Route
 app.post('/cancel', (req, res) => {
     if (currentScraping) {
         currentScraping.abort();

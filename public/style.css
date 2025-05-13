@@ -201,4 +201,26 @@ input[type="checkbox"] {
     vertical-align: middle;
     padding: 0;
 }
+.word-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0;
+}
+
+.word-list span {
+    padding: 5px 10px;
+    border: 1px solid #999;
+    border-radius: 15px;
+    cursor: pointer;
+    background-color: #eee;
+    transition: 0.2s;
+}
+
+.word-list span.active {
+    background-color:#0071e3;
+    color: white;
+    font-weight: bold;
+}
+
 

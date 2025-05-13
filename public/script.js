@@ -1,6 +1,64 @@
 window.addEventListener('DOMContentLoaded', () => {
     let autoSearchInterval;
 
+    const defaultExcludeWords = [
+        "gaming pc", "rechner", "laptop", "notebook", "setup", "system", "komplett",
+        "bundle", "monitor", "mainboard", "computer", "tower", "suche", "tausche",
+        "tauschen", "miete", "mieten", "verleihen", "defekt", "kaputt"
+    ];
+    let excludeWords = new Set(defaultExcludeWords);
+
+    function renderExcludeWords() {
+        const container = document.getElementById("exclude-word-list");
+        container.innerHTML = "";
+
+        defaultExcludeWords.forEach(word => {
+            const span = document.createElement("span");
+            span.textContent = word;
+            span.classList.add("word");
+            if (excludeWords.has(word)) {
+                span.classList.add("active");
+            }
+
+            span.addEventListener("click", () => {
+                if (excludeWords.has(word)) {
+                    excludeWords.delete(word);
+                } else {
+                    excludeWords.add(word);
+                }
+                renderExcludeWords();
+            });
+
+            container.appendChild(span);
+        });
+
+        // Zeige auch eigene Custom-Wörter
+        [...excludeWords].forEach(word => {
+            if (!defaultExcludeWords.includes(word)) {
+                const span = document.createElement("span");
+                span.textContent = word;
+                span.classList.add("active");
+
+                span.addEventListener("click", () => {
+                    excludeWords.delete(word);
+                    renderExcludeWords();
+                });
+
+                container.appendChild(span);
+            }
+        });
+    }
+
+    function addCustomExclude() {
+        const input = document.getElementById("customExclude");
+        const word = input.value.trim().toLowerCase();
+        if (word && !excludeWords.has(word)) {
+            excludeWords.add(word);
+            renderExcludeWords();
+            input.value = "";
+        }
+    }
+
     function quickSearch(keyword) {
         document.getElementById('query').value = keyword;
         fetchOffers();
@@ -9,11 +67,11 @@ window.addEventListener('DOMContentLoaded', () => {
     function showLoader() {
         document.getElementById('loader').style.display = 'flex';
     }
-    
+
     function hideLoader() {
         document.getElementById('loader').style.display = 'none';
     }
-    
+
     function cancelSearch() {
         showLoader("⏹️ Suche wird abgebrochen...");
         fetch('/cancel', { method: 'POST' })
@@ -37,17 +95,24 @@ window.addEventListener('DOMContentLoaded', () => {
         const priceLimit = document.getElementById('priceLimit').value;
         const pages = document.getElementById('pages').value || 1;
         const email = document.getElementById('email').value;
+        const excludeWordsParam = [...excludeWords].join(',');
+
 
         showLoader("🔄 Suche läuft...");
 
-        fetch(`/scrape?query=${encodeURIComponent(query)}&plz=${plz}&radius=${radius}&priceLimit=${priceLimit}&pages=${pages}&email=${encodeURIComponent(email)}&auto=${auto}`)
+        fetch(`/scrape?query=${encodeURIComponent(query)}&plz=${plz}&radius=${radius}&priceLimit=${priceLimit}&pages=${pages}&email=${encodeURIComponent(email)}&auto=${auto}&excludeWords=${encodeURIComponent(excludeWordsParam)}`)
             .then(res => res.json())
             .then(data => {
                 const container = document.getElementById("results");
                 container.innerHTML = "";
                 hideLoader();
 
-                data.forEach(offer => {
+                const filteredData = data.filter(offer => {
+                    const title = offer.title.toLowerCase();
+                    return ![...excludeWords].some(word => title.includes(word));
+                });
+
+                filteredData.forEach(offer => {
                     const div = document.createElement("div");
                     div.className = "card";
 
@@ -77,8 +142,6 @@ window.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    
-
     function toggleAutoSearch(checkbox) {
         if (checkbox.checked) {
             fetchOffers(true); // initial starten
@@ -88,10 +151,13 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Init
+    renderExcludeWords();
+
     // Global verfügbar machen
     window.quickSearch = quickSearch;
     window.fetchOffers = fetchOffers;
     window.cancelSearch = cancelSearch;
     window.toggleAutoSearch = toggleAutoSearch;
+    window.addCustomExclude = addCustomExclude;
 });
-
