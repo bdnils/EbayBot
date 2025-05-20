@@ -196,4 +196,6 @@ app.post('/cancel', (req, res) => {
         res.status(404).json({ message: 'Keine aktive Suche.' });
     }
 });
-app.listen(3000, '0.0.0.0', () => console.log('Server l�uft auf Port 3000'));
+app.listen(PORT, () => {
+    console.log(`✅ Server läuft auf http://localhost:${PORT}`);
+});
