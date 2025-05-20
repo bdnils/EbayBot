@@ -66,7 +66,7 @@ app.get('/scrape', async (req, res) => {
     if (minPrice !== null && maxPrice !== null) {
         preisSegment = `/preis:${minPrice}:${maxPrice}`;
     } else if (minPrice !== null) {
-        preisSegment = `/preis:${minPrice}`;
+        preisSegment = `/preis:${minPrice}:`;
     } else if (maxPrice !== null) {
         preisSegment = `/preis::${maxPrice}`;
     }
