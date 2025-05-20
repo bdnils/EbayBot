@@ -77,9 +77,14 @@ app.get('/scrape', async (req, res) => {
             return res.status(499).json({ message: 'Suche abgebrochen.' });
         }
 
-        const url = req.query.plz && locationMap[req.query.plz]
-            ? `https://www.kleinanzeigen.de/s-${req.query.plz}/seite:${pageNum}/${search}/k0l${ortId}r${radius}`
-            : `https://www.kleinanzeigen.de/s-seite:${pageNum}/${search}/k0`;
+        const priceLimit = parseInt(req.query.priceLimit) || 0; // 0 = kein Limit
+        const minPrice = 2;
+        const priceSegment = priceLimit > 0 ? `preis:${minPrice}:${priceLimit}/` : `preis:${minPrice}:/`;
+
+const url = req.query.plz && locationMap[req.query.plz]
+    ? `https://www.kleinanzeigen.de/s-${req.query.plz}/${priceSegment}seite:${pageNum}/${search}/k0l${ortId}r${radius}`
+    : `https://www.kleinanzeigen.de/${priceSegment}s-seite:${pageNum}/${search}/k0`;
+
 
         console.log(`🔍 Lade Seite ${pageNum}: ${url}`);
 
@@ -191,7 +196,4 @@ app.post('/cancel', (req, res) => {
         res.status(404).json({ message: 'Keine aktive Suche.' });
     }
 });
-
-app.listen(PORT, () => {
-    console.log(`✅ Server läuft auf http://localhost:${PORT}`);
-});
+app.listen(3000, '0.0.0.0', () => console.log('Server l�uft auf Port 3000'));
