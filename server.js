@@ -1,5 +1,3 @@
-// GANZE DATEI MIT ÄNDERUNGEN
-
 const express = require('express');
 const { chromium } = require('playwright');
 const app = express();
@@ -58,9 +56,20 @@ app.get('/scrape', async (req, res) => {
         return res.status(400).json({ message: `Keine Ort-ID für PLZ ${plz} gefunden.` });
     }
 
-    // ✨ Ausschlusswörter vom Client lesen
-    const rawExcludes = req.query.excludedWords || '';
+    const rawExcludes = req.query.excludeWords || '';
     const excludedWords = rawExcludes.split(',').map(w => w.trim().toLowerCase()).filter(Boolean);
+
+    const minPrice = req.query.minPrice ? parseInt(req.query.minPrice) : null;
+    const maxPrice = req.query.priceLimit ? parseInt(req.query.priceLimit) : null;
+
+    let preisSegment = '';
+    if (minPrice !== null && maxPrice !== null) {
+        preisSegment = `/preis:${minPrice}:${maxPrice}`;
+    } else if (minPrice !== null) {
+        preisSegment = `/preis:${minPrice}`;
+    } else if (maxPrice !== null) {
+        preisSegment = `/preis::${maxPrice}`;
+    }
 
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({
@@ -71,28 +80,16 @@ app.get('/scrape', async (req, res) => {
 
     for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
         if (abortController.signal.aborted) {
-            console.log("❌ Scraping wurde abgebrochen");
             await browser.close();
             currentScraping = null;
             return res.status(499).json({ message: 'Suche abgebrochen.' });
         }
 
-        const priceLimit = parseInt(req.query.priceLimit) || 0; // 0 = kein Limit
-        const minPrice = 2;
-        const priceSegment = priceLimit > 0 ? `preis:${minPrice}:${priceLimit}/` : `preis:${minPrice}:/`;
-
-const url = req.query.plz && locationMap[req.query.plz]
-    ? `https://www.kleinanzeigen.de/s-${req.query.plz}/${priceSegment}seite:${pageNum}/${search}/k0l${ortId}r${radius}`
-    : `https://www.kleinanzeigen.de/${priceSegment}s-seite:${pageNum}/${search}/k0`;
-
-
+        const url = `https://www.kleinanzeigen.de/s-${plz}${preisSegment}/seite:${pageNum}/${search}/k0l${ortId}r${radius}`;
         console.log(`🔍 Lade Seite ${pageNum}: ${url}`);
 
         try {
-            await page.goto(url, {
-                waitUntil: 'domcontentloaded',
-                timeout: 15000
-            });
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
         } catch (err) {
             if (abortController.signal.aborted) {
                 await browser.close();
@@ -108,7 +105,6 @@ const url = req.query.plz && locationMap[req.query.plz]
         const offers = await page.evaluate(() => {
             const cards = document.querySelectorAll('article.aditem');
             const list = [];
-
             cards.forEach(card => {
                 const title = card.querySelector('a.ellipsis')?.innerText ?? "";
                 const location = card.querySelector('.aditem-main--top')?.innerText ?? "";
@@ -116,25 +112,18 @@ const url = req.query.plz && locationMap[req.query.plz]
                 const url = href.startsWith("http") ? href : 'https://www.kleinanzeigen.de' + href;
                 const middleText = card.querySelector('.aditem-main--middle')?.innerText ?? "";
                 const image = card.querySelector('img')?.src ?? "";
-
                 list.push({ title, middleText, location, url, image });
             });
-
             return list;
         });
 
-        if (offers.length === 0) {
-            console.log(`🚫 Keine Angebote mehr auf Seite ${pageNum}. Beende Suche.`);
-            break;
-        }
-
+        if (offers.length === 0) break;
         allOffers = allOffers.concat(offers);
     }
 
     await browser.close();
     currentScraping = null;
 
-    // Dubletten entfernen
     const uniqueOffersMap = new Map();
     allOffers.forEach(offer => {
         if (!uniqueOffersMap.has(offer.url)) {
@@ -143,13 +132,11 @@ const url = req.query.plz && locationMap[req.query.plz]
     });
     allOffers = Array.from(uniqueOffersMap.values());
 
-    // ✨ Ausschlussfilter anwenden
     let filteredOffers = allOffers.filter(offer => {
         const title = offer.title.toLowerCase();
         return !excludedWords.some(keyword => title.includes(keyword));
     });
 
-    // Preis und Metadaten zuordnen
     let finalOffers = filteredOffers.map(offer => {
         const price = extractPrice(offer.middleText);
         const priceType = extractPriceType(offer.middleText);
@@ -163,7 +150,6 @@ const url = req.query.plz && locationMap[req.query.plz]
         };
     });
 
-    // Bewertung berechnen (Score)
     const gpuOffers = finalOffers.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
     const otherOffers = finalOffers.filter(o => o.price > 0 && !isGraphicCardOffer(o.title));
 
@@ -196,6 +182,7 @@ app.post('/cancel', (req, res) => {
         res.status(404).json({ message: 'Keine aktive Suche.' });
     }
 });
+
 app.listen(PORT, () => {
     console.log(`✅ Server läuft auf http://localhost:${PORT}`);
 });

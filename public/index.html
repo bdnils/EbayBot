@@ -39,31 +39,38 @@
             </select>
         </div>
 
-        <div class="input-row">
-            <input type="number" id="priceLimit" placeholder="Max Preis (optional)">
-            <input type="number" id="pages" placeholder="Seiten Anzahl">
-            <input type="email" id="email" placeholder="E-Mail (für Benachrichtigung)">
-        </div>
+        <button class="toggle-button" onclick="toggleFilters()">🔧 Filter anzeigen</button>
 
-        <div class="input-row checkbox-row">
-            <label>
-                <input type="checkbox" onchange="toggleAutoSearch(this)">
-                Auto-Suche alle 5 Minuten aktivieren
-            </label>
+        <div id="advanced-filters" class="hidden">
+            <div class="input-row">
+                <input type="number" id="minPrice" placeholder="Min Preis (optional)">
+                <input type="number" id="priceLimit" placeholder="Max Preis (optional)">
+                <input type="number" id="pages" placeholder="Seiten Anzahl">
+                <input type="email" id="email" placeholder="E-Mail (für Benachrichtigung)">
+            </div>
+
+            <div class="input-row checkbox-row">
+                <div class="auto-toggle">
+                    <input type="checkbox" id="autoSearchToggle" onchange="toggleAutoSearch(this)">
+                    <span class="checkmark"></span>
+                    <label for="autoSearchToggle">Auto-Suche</label>
+                </div>
+                <input type="number" id="autoInterval" placeholder="Sekunden" min="5">
+            </div>
+
+            <section class="exclude-section">
+                <h3>Wörter ausschließen</h3>
+                <div id="exclude-word-list" class="word-list"></div>
+                <div class="input-row">
+                    <input type="text" id="customExclude" placeholder="Eigenes Wort zum Ausschließen">
+                    <button onclick="addCustomExclude()">➕ Hinzufügen</button>
+                </div>
+            </section>
         </div>
 
         <div class="input-row buttons">
             <button onclick="fetchOffers()">Angebote aktualisieren</button>
             <button onclick="cancelSearch()">Suche abbrechen</button>
-        </div>
-    </section>
-
-    <section class="exclude-section">
-        <h3>Wörter ausschließen</h3>
-        <div id="exclude-word-list" class="word-list"></div>
-        <div class="input-row">
-            <input type="text" id="customExclude" placeholder="Eigenes Wort zum Ausschließen">
-            <button onclick="addCustomExclude()">➕ Hinzufügen</button>
         </div>
     </section>
 

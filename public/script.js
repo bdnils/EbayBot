@@ -32,7 +32,6 @@ window.addEventListener('DOMContentLoaded', () => {
             container.appendChild(span);
         });
 
-        // Zeige auch eigene Custom-Wörter
         [...excludeWords].forEach(word => {
             if (!defaultExcludeWords.includes(word)) {
                 const span = document.createElement("span");
@@ -73,12 +72,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     function cancelSearch() {
-        showLoader("⏹️ Suche wird abgebrochen...");
+        showLoader();
         fetch('/cancel', { method: 'POST' })
             .then(res => res.json())
             .then(data => {
                 console.log(data.message);
                 hideLoader();
+                clearInterval(autoSearchInterval);
+                enableAutoSearchControls();
                 alert("✅ Suche wurde abgebrochen.");
             })
             .catch(err => {
@@ -88,19 +89,36 @@ window.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    function disableAutoSearchControls() {
+        const checkbox = document.getElementById("autoSearchToggle");
+        const input = document.getElementById("autoInterval");
+        checkbox.disabled = true;
+        input.disabled = true;
+        input.style.opacity = "0.5";
+    }
+
+    function enableAutoSearchControls() {
+        const checkbox = document.getElementById("autoSearchToggle");
+        const input = document.getElementById("autoInterval");
+        checkbox.disabled = false;
+        input.disabled = !checkbox.checked;
+        input.style.opacity = checkbox.checked ? "1" : "0.5";
+    }
+
     function fetchOffers(auto = false) {
         const query = document.getElementById('query').value;
         const plz = document.getElementById('plz').value;
         const radius = document.getElementById('radius').value;
-        const priceLimit = document.getElementById('priceLimit').value;
-        const pages = document.getElementById('pages').value || 1;
-        const email = document.getElementById('email').value;
+        const minPrice = document.getElementById('minPrice')?.value || "";
+        const priceLimit = document.getElementById('priceLimit')?.value || "";
+        const pages = document.getElementById('pages')?.value || 1;
+        const email = document.getElementById('email')?.value || "";
         const excludeWordsParam = [...excludeWords].join(',');
 
+        showLoader();
+        disableAutoSearchControls();
 
-        showLoader("🔄 Suche läuft...");
-
-        fetch(`/scrape?query=${encodeURIComponent(query)}&plz=${plz}&radius=${radius}&priceLimit=${priceLimit}&pages=${pages}&email=${encodeURIComponent(email)}&auto=${auto}&excludeWords=${encodeURIComponent(excludeWordsParam)}`)
+        fetch(`/scrape?query=${encodeURIComponent(query)}&plz=${plz}&radius=${radius}&minPrice=${minPrice}&priceLimit=${priceLimit}&pages=${pages}&email=${encodeURIComponent(email)}&auto=${auto}&excludeWords=${encodeURIComponent(excludeWordsParam)}`)
             .then(res => res.json())
             .then(data => {
                 const container = document.getElementById("results");
@@ -134,30 +152,63 @@ window.addEventListener('DOMContentLoaded', () => {
                     `;
                     container.appendChild(div);
                 });
+
+                const autoCheckbox = document.getElementById("autoSearchToggle");
+                if (autoCheckbox.checked) {
+                    let seconds = parseInt(document.getElementById("autoInterval").value);
+                    if (isNaN(seconds) || seconds < 5) seconds = 60;
+
+                    clearInterval(autoSearchInterval);
+                    autoSearchInterval = setInterval(() => {
+                        fetchOffers(true);
+                    }, seconds * 1000);
+                    console.log(`🚀 Auto-Suche aktiviert (alle ${seconds} Sekunden)`);
+                } else {
+                    clearInterval(autoSearchInterval);
+                }
             })
             .catch(err => {
                 console.error("❌ Fehler bei der Suche:", err);
                 hideLoader();
                 alert("❌ Fehler beim Abrufen der Angebote.");
+                enableAutoSearchControls();
             });
     }
 
     function toggleAutoSearch(checkbox) {
+        const intervalInput = document.getElementById('autoInterval');
         if (checkbox.checked) {
-            fetchOffers(true); // initial starten
-            autoSearchInterval = setInterval(() => fetchOffers(true), 5 * 60 * 1000);
+            intervalInput.disabled = false;
+            intervalInput.style.opacity = "1";
         } else {
+            intervalInput.disabled = true;
+            intervalInput.style.opacity = "0.5";
             clearInterval(autoSearchInterval);
+            console.log("⛔ Auto-Suche gestoppt.");
         }
     }
 
-    // Init
-    renderExcludeWords();
+    function toggleFilters() {
+        const filters = document.getElementById('advanced-filters');
+        const button = document.querySelector('.toggle-button');
+        if (filters.classList.contains('hidden')) {
+            filters.classList.remove('hidden');
+            button.textContent = '🔧 Filter verbergen';
+        } else {
+            filters.classList.add('hidden');
+            button.textContent = '🔧 Filter anzeigen';
+        }
+    }
 
-    // Global verfügbar machen
+    // Set default value
+    document.getElementById("autoInterval").placeholder = "Standard: 60";
+    document.getElementById("autoInterval").value = "";
+
+    renderExcludeWords();
     window.quickSearch = quickSearch;
     window.fetchOffers = fetchOffers;
     window.cancelSearch = cancelSearch;
     window.toggleAutoSearch = toggleAutoSearch;
     window.addCustomExclude = addCustomExclude;
+    window.toggleFilters = toggleFilters;
 });
