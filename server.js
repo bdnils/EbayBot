@@ -3,15 +3,15 @@ const { chromium } = require('playwright');
 const app = express();
 const PORT = 3000;
 
-app.use(express.static('public'));
+app.use(express.static('public')); // Stellt sicher, dass HTML, CSS, JS aus dem 'public'-Ordner geladen werden
 
 let currentScraping = null;
 
 const locationMap = {
     "46485": "1866",
     "46483": "1867",
-    "46514": "1868",
-    "46487": "1868", // Korrigiert, falls es sich um dieselbe Ort-ID handeln soll, oder anpassen
+    "46514": "1756",
+    "46487": "1868", 
 };
 
 function extractPrice(text) {
@@ -45,19 +45,17 @@ app.get('/scrape', async (req, res) => {
     currentScraping = abortController;
 
     const query = req.query.query || "grafikkarte";
-    const search = query.trim().replace(/\s+/g, '-');
+    const searchQuery = query.trim().replace(/\s+/g, '-'); // search ist bereits eine Konstante oben, umbenannt zu searchQuery
     const pagesToScrape = Math.min(parseInt(req.query.pages) || 10, 50);
 
-    const plz = req.query.plz; // Kann undefined sein
-    const radius = req.query.radius; // Kann undefined sein
-    let ortId = null; // ortId initialisieren
+    const plz = req.query.plz;
+    const radius = req.query.radius;
+    let ortId = null;
 
-    // ortId nur bestimmen, wenn plz vorhanden ist
     if (plz) {
         ortId = locationMap[plz];
         if (!ortId) {
-            // Wenn PLZ angegeben, aber nicht in der Map, ist es ein Fehler.
-            currentScraping = null; // Wichtig: Suche zurücksetzen, um Blockaden zu verhindern
+            currentScraping = null;
             return res.status(400).json({ message: `Keine Ort-ID für die angegebene PLZ ${plz} gefunden.` });
         }
     }
@@ -77,120 +75,167 @@ app.get('/scrape', async (req, res) => {
         preisSegment = `/preis::${maxPrice}`;
     }
 
+    // Kategorie-Parameter vom Client
+    const categorySlug = req.query.categorySlug;
+    const categoryId = req.query.categoryId;
+
+    let finalUrl;
+    let urlParts = [];
+
+    if (categorySlug && categoryId) {
+        // URL-Aufbau MIT Kategorie
+        // Beispiel: https://www.kleinanzeigen.de/s-autos/46514/seite:2/vw/k0c216l1756r100
+        let basePath = `s-${categorySlug}`;
+        
+        if (plz && ortId) {
+            basePath += `/${plz}`;
+        }
+        if (req.query.pages && parseInt(req.query.pages) > 1 && pagesToScrape > 1) { // Nur wenn pageNum > 1 relevant wird
+             // Seite wird in der Schleife hinzugefügt
+        }
+        if (preisSegment) { // preisSegment enthält bereits führendes "/"
+            basePath += preisSegment;
+        }
+        basePath += `/${searchQuery}`;
+        basePath += `/k0c${categoryId}`; // Gemäß Beispiel k0c{ID}
+
+        if (ortId) {
+            basePath += `l${ortId}`;
+            if (radius) {
+                basePath += `r${radius}`;
+            }
+        }
+        // finalUrl wird unten in der Schleife pro Seite korrekt zusammengesetzt
+        // Das ist nur der Basis-Pfad für die Kategorie-Suche
+    } else {
+        // URL-Aufbau OHNE Kategorie (alte Logik)
+        // Hier wird finalUrl nicht direkt gesetzt, sondern die Logik in der Schleife greift
+    }
+
+
     let browser;
     try {
         browser = await chromium.launch({ headless: true });
-        const page = await browser.newPage({
+        const context = await browser.newContext({
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/123 Safari/537.36'
         });
+        const page = await context.newPage();
+        
 
         let allOffers = [];
 
         for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
             if (abortController.signal.aborted) {
                 console.log('Suche wurde extern abgebrochen.');
-                break; // Schleife verlassen, wenn abgebrochen
+                break;
             }
 
-            // --- Beginn der URL-Konstruktion ---
-            let urlPath = "";
-
-            // 1. PLZ-Teil (wenn PLZ und gültige ortId existieren)
-            if (plz && ortId) {
-                urlPath += plz;
-            }
-
-            // 2. Seitennummer-Teil (wenn pageNum > 1)
-            if (pageNum > 1) {
-                if (urlPath.length > 0) urlPath += "/";
-                urlPath += `seite:${pageNum}`;
-            }
-
-            // 3. Preissegment-Teil (preisSegment enthält führenden "/" falls nicht leer)
-            if (preisSegment) {
-                if (urlPath.length > 0) {
-                    urlPath += preisSegment;
-                } else {
-                    // preisSegment ist der erste Teil nach "s-", daher führenden "/" entfernen
-                    urlPath += preisSegment.substring(1);
+            let currentUrlPath = "";
+            if (categorySlug && categoryId) {
+                currentUrlPath = `s-${categorySlug}`;
+                if (plz && ortId) {
+                    currentUrlPath += `/${plz}`;
                 }
-            }
-
-            // 4. Suchbegriff-Teil (immer vorhanden)
-            if (urlPath.length > 0) {
-                urlPath += "/";
-            }
-            urlPath += search;
-
-            // 5. Kategorie-Teil (immer /k0)
-            urlPath += "/k0";
-
-            // 6. Ort-ID und Radius-Teil (wenn ortId vorhanden ist)
-            if (ortId) {
-                urlPath += `l${ortId}`;
-                if (radius) { // Radius nur hinzufügen, wenn ortId und radius vorhanden sind
-                    urlPath += `r${radius}`;
+                if (pageNum > 1) {
+                    currentUrlPath += `/seite:${pageNum}`;
                 }
+                if (preisSegment) {
+                    currentUrlPath += preisSegment;
+                }
+                currentUrlPath += `/${searchQuery}`;
+                currentUrlPath += `/k0c${categoryId}`;
+                if (ortId) {
+                    currentUrlPath += `l${ortId}`;
+                    if (radius) {
+                        currentUrlPath += `r${radius}`;
+                    }
+                }
+                finalUrl = `https://www.kleinanzeigen.de/${currentUrlPath}`;
+
+            } else {
+                // Alte URL-Logik, wenn keine Kategorie ausgewählt ist
+                let legacyPath = "";
+                if (plz && ortId) {
+                    legacyPath += plz;
+                }
+                if (pageNum > 1) {
+                    if (legacyPath.length > 0) legacyPath += "/";
+                    legacyPath += `seite:${pageNum}`;
+                }
+                if (preisSegment) {
+                    if (legacyPath.length > 0) {
+                        legacyPath += preisSegment;
+                    } else {
+                        legacyPath += preisSegment.substring(1); // führenden "/" entfernen
+                    }
+                }
+                if (legacyPath.length > 0) {
+                    legacyPath += "/";
+                }
+                legacyPath += searchQuery;
+                legacyPath += "/k0"; // Standardkategorie "Alle Kategorien"
+                if (ortId) {
+                    legacyPath += `l${ortId}`;
+                    if (radius) {
+                        legacyPath += `r${radius}`;
+                    }
+                }
+                finalUrl = `https://www.kleinanzeigen.de/s-${legacyPath}`;
             }
-
-            const url = `https://www.kleinanzeigen.de/s-${urlPath}`;
-            // --- Ende der URL-Konstruktion ---
-
-            console.log(`🔍 Lade Seite ${pageNum}: ${url}`);
+            
+            console.log(`🔍 Lade Seite ${pageNum}: ${finalUrl}`);
 
             try {
-                await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+                await page.goto(finalUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
             } catch (err) {
                 if (abortController.signal.aborted) {
                     console.log('Timeout beim Laden der Seite, aber Suche bereits abgebrochen.');
-                    break; // Schleife verlassen
+                    break;
                 } else if (err.name === 'TimeoutError') {
-                    console.warn(`Timeout beim Laden der Seite ${pageNum}: ${url}. Überspringe...`);
-                    continue; // Nächste Seite versuchen
+                    console.warn(`Timeout beim Laden der Seite ${pageNum}: ${finalUrl}. Überspringe...`);
+                    continue;
                 } else {
-                    throw err; // Anderen Fehler weiterwerfen
+                    throw err;
                 }
             }
 
-            if (abortController.signal.aborted) break; // Erneut prüfen vor dem Warten
-            await page.waitForTimeout(3000); // Kurze Pause, um dynamische Inhalte zu laden oder Rate Limits zu respektieren
+            if (abortController.signal.aborted) break;
+            await page.waitForTimeout(2000 + Math.random() * 1000); // Leichte Varianz
 
-            if (abortController.signal.aborted) break; // Erneut prüfen vor der Auswertung
+            if (abortController.signal.aborted) break;
 
             const offersOnPage = await page.evaluate(() => {
                 const cards = document.querySelectorAll('article.aditem');
                 const list = [];
                 cards.forEach(card => {
                     const titleElement = card.querySelector('a.ellipsis');
-                    const title = titleElement?.innerText ?? "";
+                    const title = titleElement?.innerText?.trim() ?? "";
                     const href = titleElement?.getAttribute('href') ?? "";
                     const itemUrl = href.startsWith("http") ? href : (href ? 'https://www.kleinanzeigen.de' + href : "");
                     
-                    // Sicherstellen, dass nur gültige Angebote mit Titel und URL erfasst werden
                     if (title && itemUrl) {
-                        const location = card.querySelector('.aditem-main--top')?.innerText ?? "";
-                        const middleText = card.querySelector('.aditem-main--middle')?.innerText ?? "";
-                        const image = card.querySelector('img')?.src ?? "";
+                        const location = card.querySelector('.aditem-main--top')?.innerText?.trim() ?? "";
+                        const middleText = card.querySelector('.aditem-main--middle')?.innerText?.trim() ?? "";
+                        const image = card.querySelector('img')?.src ?? ""; // .aditem-image img
                         list.push({ title, middleText, location, url: itemUrl, image });
                     }
                 });
                 return list;
             });
 
-            if (offersOnPage.length === 0 && pageNum > 1) { // Wenn nach der ersten Seite keine Angebote mehr kommen
-                 console.log(`Keine weiteren Angebote auf Seite ${pageNum} gefunden.`);
-                 break;
+            if (offersOnPage.length === 0 && pageNum > 1) {
+                console.log(`Keine weiteren Angebote auf Seite ${pageNum} gefunden.`);
+                break;
             }
             allOffers = allOffers.concat(offersOnPage);
-            if (offersOnPage.length < 20 && pageNum > 1) { // Oft ein Indikator für das Ende der Ergebnisse
+            if (offersOnPage.length < 20 && pageNum > 1) { 
                 console.log(`Weniger als 20 Angebote auf Seite ${pageNum}, möglicherweise Ende der Ergebnisse.`);
-                // break; // Optional: Suche abbrechen, wenn nicht voll
             }
         }
 
         const uniqueOffersMap = new Map();
         allOffers.forEach(offer => {
-            if (offer.url && !uniqueOffersMap.has(offer.url)) { // Nur Angebote mit URL berücksichtigen
+            if (offer.url && !uniqueOffersMap.has(offer.url)) {
                 uniqueOffersMap.set(offer.url, offer);
             }
         });
@@ -223,7 +268,7 @@ app.get('/scrape', async (req, res) => {
                 const min = Math.min(...prices), max = Math.max(...prices);
                 offersList.forEach(o => o.score = (max !== min) ? Math.round(((max - o.price) / (max - min)) * 100) : 0);
             } else {
-                offersList.forEach(o => o.score = 0);
+                offersList.forEach(o => o.score = 0); // Oder einen Standardscore, z.B. 50, wenn nur ein Angebot
             }
         };
 
@@ -231,7 +276,7 @@ app.get('/scrape', async (req, res) => {
         assignScore(otherOffers);
 
         const remaining = finalOffers.filter(o => o.price === 0);
-        remaining.forEach(o => o.score = 0);
+        remaining.forEach(o => o.score = 0); // Kein Preis, kein Score
 
         const allSorted = [...gpuOffers, ...otherOffers, ...remaining];
         res.json(allSorted.sort((a, b) => b.score - a.score));
@@ -254,8 +299,7 @@ app.get('/scrape', async (req, res) => {
 app.post('/cancel', (req, res) => {
     if (currentScraping) {
         console.log('Empfange Abbruchanfrage...');
-        currentScraping.abort(); // Signalisiert den Abbruch
-        // currentScraping wird in der finally-Klausel oder bei Fehlerbehandlung der /scrape Route auf null gesetzt
+        currentScraping.abort();
         res.json({ message: 'Suche wird abgebrochen.' });
     } else {
         res.status(404).json({ message: 'Keine aktive Suche zum Abbrechen vorhanden.' });

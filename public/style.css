@@ -1,133 +1,309 @@
+/* CSS Variablen für einfache Anpassungen */
+:root {
+    --primary-color: #0071e3; /* Lebhaftes Blau, ähnlich Apple */
+    --primary-color-dark: #005bb5;
+    --secondary-color: #1d1d1f; /* Dunkler Text */
+    --light-text-color: #f5f5f7; /* Sehr heller Text für dunkle Hintergründe */
+    --background-color: #f5f5f7; /* Sehr heller Grauton für den Body */
+    --content-background: #ffffff; /* Weiß für Karten und Container */
+    --border-color: #d2d2d7;
+    --border-color-light: #e5e5e7;
+    --success-color: #34c759;
+    --error-color: #ff3b30;
+    --neutral-bg: #e9e9eb; /* Neutraler Hintergrund für Buttons, etc. */
+
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --border-radius-small: 6px;
+    --border-radius-medium: 12px;
+    --border-radius-large: 16px;
+    --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-medium: 0 8px 20px rgba(0, 0, 0, 0.1);
+    --transition-fast: 0.2s ease-out;
+    --transition-medium: 0.3s ease-out;
+}
+
+/* Globale Resets und Body-Styling */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    padding: 0 40px 40px 40px;
-    background: #ffffff;
-    color: #1d1d1f;
-    text-align: center;
+    font-family: var(--font-family);
+    background-color: var(--background-color);
+    color: var(--secondary-color);
+    line-height: 1.6;
+    padding-top: 80px; /* Platz für die sticky Topbar */
+}
+
+.wrapper {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
 }
 
 h1 {
-    font-size: 42px;
+    font-size: 2.5rem; /* 40px */
     font-weight: 600;
-    margin-bottom: 40px;
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--secondary-color);
 }
 
-input, select {
-    padding: 14px 20px;
-    font-size: 18px;
-    width: 250px;
-    border: 1px solid #d6d6d6;
-    border-radius: 12px;
-    background: #f5f5f7;
-    transition: border-color 0.3s, background 0.3s;
-    appearance: none;
-}
-
-input:focus, select:focus {
-    outline: none;
-    border-color: #0071e3;
-    background: #ffffff;
-}
-
-select {
-    background-image: url("data:image/svg+xml;utf8,<svg fill='gray' height='20' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
-    background-repeat: no-repeat;
-    background-position: right 16px center;
-    background-size: 16px;
-    padding-right: 40px;
-    cursor: pointer;
-}
-
-button { /* Allgemeine Button-Stile, spezifischere Buttons überschreiben dies ggf. */
-    padding: 14px 24px;
-    font-size: 18px;
-    font-weight: 500;
-    background-color: #0071e3;
-    color: white;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: background-color 0.3s, transform 0.2s;
-    margin-left: 10px; /* Wird von .menu-button ggf. überschrieben oder entfernt */
-}
-
-button:hover {
-    background-color: #005bb5;
-    transform: translateY(-2px);
-}
-
-.toggle-button {
-    margin: 16px 0;
-    font-size: 16px;
-    padding: 10px 20px;
-    background-color: #f0f0f5;
-    color: #333;
-    border: 1px solid #ccc;
-    border-radius: 10px;
-    cursor: pointer;
-}
-
-.toggle-button:hover {
-    background-color: #e0e0e0;
-}
-
-.hidden {
-    display: none;
-}
-
-.input-row {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-}
-
-.checkbox-row {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.auto-toggle {
+h3 {
+    font-size: 1.25rem; /* 20px */
+    font-weight: 600;
+    margin-bottom: 15px;
     display: flex;
     align-items: center;
     gap: 8px;
-    position: relative;
 }
 
-.auto-toggle input[type="checkbox"] {
+/* Topbar */
+.topbar {
+    position: fixed; /* Geändert von sticky zu fixed für klareres Verhalten */
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    z-index: 1000;
+    padding: 0 20px; /* Padding für den gesamten Balken */
+}
+
+.nav-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Bessere Verteilung */
+    max-width: 1200px; /* Etwas breiter für moderne Layouts */
+    margin: 0 auto;
+    height: 60px; /* Feste Höhe */
+}
+
+.menu-button {
+    background: none;
+    border: none;
+    font-size: 1.5rem; /* 24px */
+    color: var(--secondary-color);
+    cursor: pointer;
+    padding: 10px;
+    border-radius: var(--border-radius-small);
+    transition: background-color var(--transition-fast);
+    display: flex; /* Für Icon-Zentrierung */
+    align-items: center;
+    justify-content: center;
+}
+
+.menu-button:hover {
+    background-color: var(--border-color-light);
+}
+
+.nav-logo {
+    height: 36px; /* Etwas kleiner für feineren Look */
+    cursor: pointer;
+    margin-left: -10px; /* Korrigiert den Abstand, wenn Menü-Button vorhanden ist */
+}
+
+.nav-links a {
+    margin-left: 20px;
+    text-decoration: none;
+    font-size: 0.95rem; /* 15.2px */
+    font-weight: 500;
+    color: var(--secondary-color);
+    padding: 8px 12px;
+    border-radius: var(--border-radius-small);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.nav-links a:hover {
+    background-color: var(--neutral-bg);
+    color: var(--primary-color);
+}
+
+/* Formular Sektion */
+.form-section.card {
+    background-color: var(--content-background);
+    padding: 25px;
+    border-radius: var(--border-radius-large);
+    box-shadow: var(--shadow-soft);
+    margin-bottom: 30px;
+    text-align: left;
+}
+
+.input-group {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap; /* Erlaubt Umbruch auf kleineren Bildschirmen */
+}
+
+.input-group input[type="text"],
+.input-group input[type="number"],
+.input-group input[type="email"],
+.select-wrapper select {
+    flex-grow: 1; /* Felder füllen den verfügbaren Platz */
+    min-width: 180px; /* Mindestbreite bevor Umbruch */
+    padding: 12px 15px;
+    font-size: 1rem; /* 16px */
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-medium);
+    background-color: var(--background-color);
+    transition: border-color var(--transition-medium), box-shadow var(--transition-medium);
+    outline: none;
+}
+.select-wrapper {
+    position: relative;
+    flex-grow: 1;
+    min-width: 180px;
+}
+
+.select-wrapper::after { /* Custom Pfeil für Select */
+    content: '\f078'; /* Font Awesome chevron-down */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--secondary-color);
+    opacity: 0.7;
+}
+
+.select-wrapper select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    cursor: pointer;
+}
+
+
+.input-group input[type="text"]:focus,
+.input-group input[type="number"]:focus,
+.input-group input[type="email"]:focus,
+.select-wrapper select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2); /* Fokus-Indikator */
+    background-color: var(--content-background);
+}
+
+
+/* Toggle Filter Button */
+.toggle-filters-button {
+    display: flex; /* Für Icon und Text */
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: 500;
+    background-color: var(--neutral-bg);
+    color: var(--secondary-color);
+    border: 1px solid var(--border-color-light);
+    border-radius: var(--border-radius-medium);
+    cursor: pointer;
+    transition: background-color var(--transition-medium);
+    margin-bottom: 20px; /* Abstand zum Filterbereich */
+}
+
+.toggle-filters-button:hover {
+    background-color: var(--border-color-light);
+}
+
+.toggle-filters-button .filter-arrow {
+    transition: transform var(--transition-medium);
+}
+
+.toggle-filters-button.open .filter-arrow {
+    transform: rotate(180deg);
+}
+
+
+/* Erweiterte Filter - Animierbar */
+#advanced-filters {
+    opacity: 1;
+    visibility: visible;
+    max-height: 1000px; /* Ausreichend groß für Inhalt */
+    overflow: hidden;
+    transition: opacity var(--transition-medium) ease-out, 
+                max-height var(--transition-medium) ease-out,
+                margin-top var(--transition-medium) ease-out,
+                margin-bottom var(--transition-medium) ease-out,
+                visibility 0s linear 0s;
+    margin-top: 0; /* Sicherstellen, dass es im geschlossenen Zustand keinen Margin hat */
+    margin-bottom: 20px; /* Abstand, wenn offen */
+}
+
+#advanced-filters.hidden {
+    opacity: 0;
+    visibility: hidden;
+    max-height: 0;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important; /* Falls es Padding hat */
+    padding-bottom: 0 !important;
+    border-width: 0 !important; /* Falls es Border hat */
+    transition: opacity var(--transition-medium) ease-in, 
+                max-height var(--transition-medium) ease-in,
+                margin-top var(--transition-medium) ease-in,
+                margin-bottom var(--transition-medium) ease-in,
+                padding-top var(--transition-medium) ease-in,
+                padding-bottom var(--transition-medium) ease-in,
+                border-width var(--transition-medium) ease-in,
+                visibility 0s linear var(--transition-medium); /* Verzögert visibility */
+}
+
+
+/* Auto-Suche Checkbox */
+.auto-search-group {
+    align-items: center;
+}
+.auto-toggle-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.95rem;
+    user-select: none;
+    position: relative;
+    padding-left: 30px; /* Platz für custom Checkbox */
+}
+
+.auto-toggle-label input[type="checkbox"] {
     position: absolute;
     opacity: 0;
     cursor: pointer;
-    width: 18px;
-    height: 18px;
+    height: 0;
+    width: 0;
+}
+
+.custom-checkmark {
+    position: absolute;
     left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 20px;
+    width: 20px;
+    background-color: var(--neutral-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-small);
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.checkmark {
-    height: 18px;
-    width: 18px;
-    background-color: #eee;
-    border: 2px solid #aaa;
-    border-radius: 4px;
-    display: inline-block;
-    position: relative;
+.auto-toggle-label input[type="checkbox"]:checked ~ .custom-checkmark {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
 }
 
-.auto-toggle input:checked ~ .checkmark {
-    background-color: #0071e3;
-    border-color: #0071e3;
-}
-
-.checkmark::after {
+.custom-checkmark::after {
     content: "";
     position: absolute;
     display: none;
-    left: 5px;
-    top: 1px;
+    left: 6px;
+    top: 2px;
     width: 5px;
     height: 10px;
     border: solid white;
@@ -135,165 +311,143 @@ button:hover {
     transform: rotate(45deg);
 }
 
-.auto-toggle input:checked ~ .checkmark::after {
+.auto-toggle-label input[type="checkbox"]:checked ~ .custom-checkmark::after {
     display: block;
 }
 
-.auto-toggle label {
-    padding-left: 28px;
-    cursor: pointer;
-    font-size: 16px;
-    user-select: none;
+#autoInterval {
+    width: 120px; /* Etwas mehr Platz */
+    opacity: 0.5; /* Standardmäßig ausgegraut */
+    transition: opacity var(--transition-medium);
 }
 
-#autoInterval {
-    width: 90px;
-    padding: 10px;
-    font-size: 14px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    background: #f9f9f9;
+#autoSearchToggle:checked ~ #autoInterval, /* JS muss ggf. `disabled` Attribut steuern für Funktionalität */
+.auto-toggle-label input[type="checkbox"]:checked + #autoInterval { /* Funktioniert nur wenn #autoInterval direkt nach Checkbox im DOM wäre */
+    opacity: 1;
+}
+/* JS steuert input.disabled; dieses CSS nur für Optik, wenn JS Intervall-Input aktiviert */
+#autoInterval:not(:disabled) {
+    opacity: 1;
+}
+
+
+/* Wortliste ausschließen */
+.exclude-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color-light);
 }
 
 .word-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin: 10px 0;
+    gap: 8px;
+    margin-bottom: 15px;
 }
 
 .word-list span {
-    padding: 5px 10px;
-    border: 1px solid #999;
-    border-radius: 15px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 15px; /* Pill-shape */
     cursor: pointer;
-    background-color: #eee;
-    transition: 0.2s;
+    background-color: var(--content-background);
+    color: var(--secondary-color);
+    font-size: 0.9rem;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.word-list span:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
 }
 
 .word-list span.active {
-    background-color:#0071e3;
-    color: white;
-    font-weight: bold;
-}
-
-#results {
-    margin-top: 40px;
-    display: grid;
-    gap: 20px;
-    max-width: 800px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.card {
-    background: #f9f9f9;
-    padding: 20px;
-    border-radius: 16px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-    text-align: left;
-    transition: box-shadow 0.3s, transform 0.3s;
-    animation: fadeIn 0.5s ease forwards;
-}
-
-.card:hover {
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-    transform: translateY(-4px);
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.topbar {
-    position: sticky;
-    top: 0;
-    width: 100%;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-    z-index: 1000;
-}
-
-/* --- Start: Topbar Navigation Styles (Konsolidiert) --- */
-.nav-content {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 2px 20px;
-}
-
-.logo-and-nav { /* Neuer Stil für den Wrapper von Logo und Nav-Links */
-    display: flex;
-    align-items: center;
-}
-
-.menu-button {
-    background: none;
-    border: none;
-    font-size: 24px;
-    /* margin-right: 15px; Entfernt, da space-between den Abstand regelt */
-    margin-left: 0; /* Stellt sicher, dass kein Standard-Button-Margin stört */
-    cursor: pointer;
-    color: #1d1d1f; /* Für bessere Sichtbarkeit angepasst */
-    padding: 6px 10px; /* Ähnlich wie nav-links a für konsistentes Klickgefühl */
-    border-radius: 8px;
-    transition: background-color 0.2s;
-}
-
-.menu-button:hover {
-    background-color: #e5e5e7; /* Ähnlich wie nav-links a:hover */
-}
-
-.nav-logo {
-    height: 40px;
-    margin-right: 20px; /* Abstand zwischen Logo und den Navigationslinks */
-    cursor: pointer;
-}
-
-.nav-links a {
-    margin-left: 16px; /* Behält den Abstand zwischen den einzelnen Links */
-    text-decoration: none;
-    font-size: 16px;
+    background-color: var(--primary-color);
+    color: var(--light-text-color);
+    border-color: var(--primary-color);
     font-weight: 500;
-    color: #1d1d1f;
-    padding: 6px 10px;
-    border-radius: 8px;
-    transition: background 0.2s, color 0.2s;
 }
 
-.nav-links a:hover {
-    background: #e5e5e7;
-    color: #0071e3;
-}
-/* --- Ende: Topbar Navigation Styles --- */
-
-.wrapper {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 0 20px;
-}
-
-.loader {
+.button-add {
+    background-color: var(--success-color);
+    color: white;
+    padding: 12px 15px;
+    font-size: 1rem;
+    border: none;
+    border-radius: var(--border-radius-medium);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
     display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.button-add:hover {
+    background-color: #28a745; /* Dunkleres Grün */
+}
+
+
+/* Formular Buttons */
+.form-actions {
+    display: flex;
+    justify-content: center; /* Buttons zentrieren */
+    gap: 15px;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color-light);
+    flex-wrap: wrap;
+}
+
+.button-primary, .button-secondary {
+    padding: 12px 25px;
+    font-size: 1rem;
+    font-weight: 500;
+    border: none;
+    border-radius: var(--border-radius-medium);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), transform var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.button-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+.button-primary:hover {
+    background-color: var(--primary-color-dark);
+    transform: translateY(-2px);
+}
+
+.button-secondary {
+    background-color: var(--neutral-bg);
+    color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+}
+.button-secondary:hover {
+    background-color: var(--border-color-light);
+    transform: translateY(-2px);
+}
+
+
+/* Loader */
+.loader {
+    display: flex; /* Wird per JS gesteuert */
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    flex-direction: column;
-    font-size: 1.2em;
-    color: #333;
+    padding: 40px 0;
+    color: var(--secondary-color);
 }
 
 .spinner {
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    border-top: 4px solid #3498db;
+    border: 5px solid var(--neutral-bg);
+    border-top: 5px solid var(--primary-color);
     border-radius: 50%;
     width: 50px;
     height: 50px;
-    animation: spin 1s linear infinite;
-    margin-bottom: 10px;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 15px;
 }
 
 @keyframes spin {
@@ -301,79 +455,286 @@ button:hover {
     100% { transform: rotate(360deg); }
 }
 
-/* --- Start: Kategoriemenü Styles (Konsolidiert) --- */
-.category-menu {
-    position: fixed;
-    top: 60px; /* Höhe der Topbar, ggf. anpassen falls diese sich ändert */
-    left: 0;
-    width: 260px;
-    height: calc(100% - 60px); /* Höhe anpassen, um nicht unter der Topbar zu verschwinden */
-    background-color: #ffffff; /* Hellerer Hintergrund, passend zum Body */
-    transform: translateX(-100%); /* Initial versteckt */
-    transition: transform 0.3s ease;
-    z-index: 1001; /* Sicherstellen, dass es über anderem Inhalt (außer ggf. Modals) liegt */
-    padding: 10px 0; /* Oben/Unten Padding reduziert, da die Listenelemente Padding bekommen */
-    overflow-y: auto;
-    border-right: 1px solid #e0e0e0; /* Dezente Trennlinie */
-    box-shadow: 3px 0px 10px rgba(0, 0, 0, 0.07); /* Weicher Schatten */
-    color: #1d1d1f; /* Standard Textfarbe */
+/* Ausgewählte Kategorie Info */
+.selected-category-info {
+    background-color: var(--content-background);
+    padding: 12px 20px;
+    border-radius: var(--border-radius-medium);
+    box-shadow: var(--shadow-soft);
+    margin: 0 auto 25px auto; /* Zentriert und mit Abstand */
+    max-width: 800px; /* Konsistent mit Results-Container */
+    display: flex; /* Wird per JS umgeschaltet */
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--primary-color); /* Akzent-Border */
+}
+.selected-category-info strong {
+    color: var(--primary-color);
+}
+#clearCategoryButton {
+    background-color: var(--error-color);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--border-radius-small);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+#clearCategoryButton:hover {
+    background-color: #d92a22; /* Dunkleres Rot */
 }
 
-.category-menu.show { /* Wichtig: Diese Regel macht das Menü sichtbar */
+
+/* Ergebnisse */
+#results {
+    display: grid;
+    grid-template-columns: 1fr; /* Standardmäßig eine Spalte */
+    gap: 20px;
+    max-width: 800px;
+    margin: 0 auto; /* Zentriert den Results-Container */
+}
+
+/* Ergebnisse Karten */
+.card { /* Allgemeiner Kartenstil, wird von .form-section und .result-card genutzt */
+    background-color: var(--content-background);
+    border-radius: var(--border-radius-large);
+    box-shadow: var(--shadow-soft);
+    text-align: left;
+    transition: transform var(--transition-medium), box-shadow var(--transition-medium);
+    overflow: hidden; /* Für abgerundete Ecken bei Bildern */
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-medium);
+}
+
+.result-card { /* Spezifisch für Suchergebnisse, erbt von .card */
+    padding: 0; /* Padding wird intern geregelt */
+    animation: fadeIn 0.5s var(--transition-medium) forwards;
+    opacity: 0; /* Initial für Animation */
+}
+
+/* In Ihrer style.css Datei, finden Sie diese Regel: */
+.result-card .card-image {
+    width: 100%;
+    height: 200px; /* Feste Höhe für Bilder */
+    /* object-fit: cover; ALT */
+    object-fit: contain; /* NEU: Stellt sicher, dass das gesamte Bild sichtbar ist und das Seitenverhältnis beibehalten wird. Kann zu Leerraum führen. */
+    display: block;
+    background-color: #e9e9eb; /* Optional: Hintergrundfarbe für den Fall, dass 'contain' Leerraum erzeugt */
+} 
+
+.result-card .card-content {
+    padding: 20px;
+}
+
+.result-card h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--secondary-color);
+}
+.card-image-placeholder {
+    width: 100%;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--neutral-bg);
+    color: var(--secondary-color);
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--border-color-light); /* Falls Bilder oben sind und Inhalt unten */
+}
+
+.result-card p {
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+    color: #555;
+}
+.result-card p strong {
+    color: var(--secondary-color);
+}
+
+.result-card a.card-link {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 8px 15px;
+    background-color: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: var(--border-radius-small);
+    font-weight: 500;
+    transition: background-color var(--transition-fast);
+}
+
+.result-card a.card-link:hover {
+    background-color: var(--primary-color-dark);
+}
+
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* Kategoriemenü */
+.category-menu {
+    position: fixed;
+    top: 60px; /* Höhe der Topbar */
+    left: 0;
+    width: 280px; /* Etwas breiter */
+    height: calc(100vh - 60px); /* Volle Höhe unter der Topbar */
+    background-color: var(--content-background);
+    transform: translateX(-100%);
+    transition: transform var(--transition-medium);
+    z-index: 1001; /* Über Topbar-Inhalt, aber unter Modals */
+    overflow-y: auto;
+    border-right: 1px solid var(--border-color-light);
+    box-shadow: 4px 0px 15px rgba(0, 0, 0, 0.07);
+}
+
+.category-menu.show {
     transform: translateX(0);
 }
 
-.category-menu ul { /* Haupt-Liste im Menü */
-    padding-left: 0;
+.category-menu ul {
     list-style: none;
-    margin: 0;
 }
 
-.category-menu > ul > li { /* Direkte Listenelemente der Hauptkategorien */
-    border-bottom: 1px solid #f0f0f0; /* Trennlinie zwischen Hauptkategorien */
+.category-menu > ul > li {
+    border-bottom: 1px solid var(--border-color-light);
 }
-
 .category-menu > ul > li:last-child {
-    border-bottom: none; /* Keine Linie beim letzten Element */
+    border-bottom: none;
 }
 
-.category-title { /* Klickbarer Titel der Hauptkategorie */
+.category-title {
+    display: flex; /* Für Icon-Ausrichtung */
+    justify-content: space-between;
+    align-items: center;
     cursor: pointer;
-    font-weight: 500; /* Konsistent mit Buttons */
-    display: block;
-    padding: 12px 20px; /* Gute Klickfläche */
-    margin: 0;
-    transition: background-color 0.2s ease, color 0.2s ease;
-    color: #1d1d1f; /* Standard Textfarbe */
-    background-color: transparent; /* Kein eigener Hintergrund, hover regelt das */
+    font-weight: 500;
+    padding: 15px 20px;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    color: var(--secondary-color);
 }
 
 .category-title:hover {
-    background-color: #f5f5f7; /* Heller Hover-Effekt, ähnlich Input-Feldern */
-    color: #0071e3; /* Akzentfarbe beim Hover */
+    background-color: var(--neutral-bg);
+    color: var(--primary-color);
+}
+
+.category-title i.fas { /* Pfeil-Icon */
+    font-size: 0.8em;
+    transition: transform var(--transition-medium);
+}
+.category-title.open i.fas { /* Klasse .open wird per JS gesetzt, wenn Submenü offen ist */
+    transform: rotate(180deg);
 }
 
 .submenu {
-    /* display: none; wird von JavaScript umgeschaltet durch style.display */
     list-style: none;
-    margin: 0; /* Zurücksetzen für volles Design-Kontrolle */
-    padding: 5px 0 10px 30px; /* Einrückung links, oben/unten Padding für die Gruppe */
-    background-color: #f9f9f9; /* Leicht anderer Hintergrund zur Abgrenzung */
+    background-color: var(--background-color); /* Leichter Kontrast zum Menü-Hintergrund */
+    /* display: none; wird von JS umgeschaltet. Für CSS Animationen: */
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    visibility: hidden;
+    transition: max-height var(--transition-medium) ease-in-out, 
+                opacity var(--transition-medium) ease-in-out,
+                padding var(--transition-medium) ease-in-out, /* Animiert Padding für sanfteres Erscheinen */
+                visibility 0s linear var(--transition-medium); /* Verzögert visibility */
+    padding-left: 20px; /* Standard Einrückung, wird beim Schließen auf 0 gesetzt (oder beibehalten) */
 }
 
+.submenu.open { /* JS muss diese Klasse togglen statt style.display */
+    max-height: 1000px; /* Ausreichend Platz für Inhalt */
+    opacity: 1;
+    visibility: visible;
+    padding-top: 5px; /* Padding, wenn offen */
+    padding-bottom: 10px;
+    transition: max-height var(--transition-medium) ease-in-out, 
+                opacity var(--transition-medium) ease-in-out,
+                padding var(--transition-medium) ease-in-out,
+                visibility 0s linear 0s;
+}
+
+
 .submenu li {
-    padding: 9px 15px; /* Ausreichend Padding für Unterpunkte */
+    padding: 10px 20px 10px 15px; /* padding-left kleiner, da submenu schon eingerückt */
     cursor: pointer;
-    font-size: 0.92em; /* Etwas kleiner als Hauptkategorien */
-    color: #333333; /* Etwas hellere Textfarbe */
-    border-radius: 6px; /* Für abgerundeten Hover-Effekt */
-    margin-right: 10px; /* Falls rechts noch Platz für die Scrollbar ist (innerhalb des .submenu) */
-    transition: background-color 0.2s ease, color 0.2s ease;
+    font-size: 0.9rem;
+    color: var(--secondary-color);
+    border-radius: var(--border-radius-small);
+    margin: 2px 5px 2px 0; /* Kleiner Margin */
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .submenu li:hover {
-    background-color: #e5e5e7; /* Konsistenter Hover-Effekt */
-    color: #0071e3; /* Akzentfarbe */
-    text-decoration: none; /* Entfernt Unterstreichung, die voreingestellt sein könnte */
+    background-color: var(--neutral-bg);
+    color: var(--primary-color);
 }
-/* --- Ende: Kategoriemenü Styles --- */
+
+
+/* Responsive Anpassungen */
+@media (max-width: 768px) {
+    body {
+        padding-top: 60px; /* Höhe der Topbar anpassen, falls sie schmaler wird */
+    }
+    .wrapper {
+        padding: 15px;
+    }
+    h1 {
+        font-size: 2rem; /* 32px */
+    }
+    .input-group {
+        flex-direction: column; /* Eingabefelder untereinander */
+        gap: 10px;
+    }
+    .input-group input[type="text"],
+    .input-group input[type="number"],
+    .input-group input[type="email"],
+    .select-wrapper select,
+    .select-wrapper {
+        width: 100%; /* Volle Breite in der Spalte */
+    }
+
+    .nav-links {
+        display: none; /* Navigationslinks in der Topbar ausblenden, ggf. ins Kategoriemenü verschieben */
+    }
+    .nav-logo {
+        margin-left: 10px; /* Anpassen, wenn Nav-Links weg sind */
+    }
+    .form-actions {
+        flex-direction: column;
+    }
+    .button-primary, .button-secondary {
+        width: 100%;
+    }
+    .category-menu {
+        width: 250px; /* Etwas schmaler auf Mobilgeräten */
+        top: 50px; /* Falls Topbar Höhe ändert */
+        height: calc(100vh - 50px);
+    }
+    #results {
+        gap: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .topbar {
+        padding: 0 10px;
+    }
+     .nav-logo {
+        height: 30px;
+    }
+    .menu-button {
+        font-size: 1.3rem;
+    }
+}
