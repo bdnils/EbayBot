@@ -212,3 +212,15 @@ window.addEventListener('DOMContentLoaded', () => {
     window.addCustomExclude = addCustomExclude;
     window.toggleFilters = toggleFilters;
 });
+
+function toggleSubmenu(element) {
+    const submenu = element.nextElementSibling;
+    submenu.style.display = submenu.style.display === 'block' ? 'none' : 'block';
+}
+
+function toggleCategoryMenu() {
+    console.log("toggleCategoryMenu wurde aufgerufen!"); // Testzeile
+    const menu = document.getElementById('categoryMenu');
+    menu.classList.toggle('show');
+}
+

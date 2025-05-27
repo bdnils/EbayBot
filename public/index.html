@@ -11,9 +11,13 @@
 
     <header class="topbar">
         <div class="nav-content">
-            <a href="/" class="nav-logo-link">
-                <img src="logo.png" alt="GPU Sniper Logo" class="nav-logo">
-            </a>
+            <!-- Kategorien-Button ganz links -->
+            <button class="menu-button" onclick="toggleCategoryMenu()">☰</button>
+    
+            <!-- Logo direkt rechts daneben -->
+            <img src="logo.png" alt="GPU Sniper Logo" class="nav-logo" onclick="location.reload()">
+    
+            <!-- Schnellnavigation -->
             <nav class="nav-links">
                 <a href="#" onclick="quickSearch('RTX 3060')">RTX 3060</a>
                 <a href="#" onclick="quickSearch('RTX 4090')">RTX 4090</a>
@@ -22,6 +26,8 @@
             </nav>
         </div>
     </header>
+    
+    
 
 <main class="wrapper">
     <h1>Kleinanzeigen Sniper</h1>
@@ -81,6 +87,206 @@
     </div>
 
     <div id="results"></div>
+
+    <aside id="categoryMenu" class="category-menu">
+        <ul>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Auto, Rad & Boot</span>
+                <ul class="submenu">
+                    <li>Autos</li>
+                    <li>Autoteile & Reifen</li>
+                    <li>Boote & Bootszubehör</li>
+                    <li>Fahrräder & Zubehör</li>
+                    <li>Motorräder & Motorroller</li>
+                    <li>Nutzfahrzeuge & Anhänger</li>
+                    <li>Reparaturen & Dienstleistungen</li>
+                    <li>Wohnwagen & -mobile</li>
+                    <li>Weitere Auto, Rad & Boot</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Elektronik</span>
+                <ul class="submenu">
+                    <li>Audio & HiFi</li>
+                    <li>Dienstleistungen Elektronik</li>
+                    <li>Foto</li>
+                    <li>Handy & Telefon</li>
+                    <li>Haushaltsgeräte</li>
+                    <li>Konsolen</li>
+                    <li>Notebooks</li>
+                    <li>PCs</li>
+                    <li>Tablets & Reader</li>
+                    <li>TV & Video</li>
+                    <li>Videospiele</li>
+                    <li>Weitere Elektronik</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Haus & Garten</span>
+                <ul class="submenu">
+                    <li>Badezimmer</li>
+                    <li>Büro</li>
+                    <li>Dekoration</li>
+                    <li>Dienstleistungen Haus & Garten</li>
+                    <li>Gartenmöbel & Pflanzen</li>
+                    <li>Heimtextilien</li>
+                    <li>Heizkosten & Erneuerbare</li>
+                    <li>Küche & Esszimmer</li>
+                    <li>Lampen & Licht</li>
+                    <li>Schlafzimmer</li>
+                    <li>Wohnzimmer</li>
+                    <li>Weitere Haus & Garten</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Familie, Kind & Baby</span>
+                <ul class="submenu">
+                    <li>Altenpflege</li>
+                    <li>Baby- & Kinderkleidung</li>
+                    <li>Baby- & Kinderschuhe</li>
+                    <li>Baby-Ausstattung</li>
+                    <li>Babyschalen & Kindersitze</li>
+                    <li>Babysitter & Kinderbetreuung</li>
+                    <li>Kinderwagen & Buggys</li>
+                    <li>Kindermöbel</li>
+                    <li>Spielzeug</li>
+                    <li>Weiteres Familie, Kind & Baby</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Freizeit, Hobby & Nachbarschaft</span>
+                <ul class="submenu">
+                    <li>Basteln, Handarbeiten & Kunsthandwerk</li>
+                    <li>Esoterik & Spirituelles</li>
+                    <li>Essen & Trinken</li>
+                    <li>Freizeitaktivitäten</li>
+                    <li>Kunst & Antiquitäten</li>
+                    <li>Künstlerbedarf & Künstler-Material</li>
+                    <li>Modellbau</li>
+                    <li>Reise & Eventservices</li>
+                    <li>Sammeln</li>
+                    <li>Sport & Camping</li>
+                    <li>Tauschen & Verschenken</li>
+                    <li>Verloren & Gefunden</li>
+                    <li>Weiteres Freizeit, Hobby & Nachbarschaft</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Immobilien</span>
+                <ul class="submenu">
+                    <li>Auf Zeit & WG</li>
+                    <li>Container</li>
+                    <li>Eigentumswohnungen</li>
+                    <li>Ferien- & Auslandsimmobilien</li>
+                    <li>Garagen & Stellplätze</li>
+                    <li>Gewerbeimmobilien</li>
+                    <li>Grundstücke & Gärten</li>
+                    <li>Haus zur Miete</li>
+                    <li>Haus zum Kauf</li>
+                    <li>Mitbewohner</li>
+                    <li>Umzug & Transport</li>
+                    <li>Weitere Immobilien</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Jobs</span>
+                <ul class="submenu">
+                    <li>Ausbildung</li>
+                    <li>Bau, Handwerk & Produktion</li>
+                    <li>Büroarbeit & Verwaltung</li>
+                    <li>Gastronomie & Tourismus</li>
+                    <li>Kundenservice & Call Center</li>
+                    <li>Mini- & Nebenjobs</li>
+                    <li>Praktika</li>
+                    <li>Sozialer Sektor & Pflege</li>
+                    <li>Transport, Logistik & Verkehr</li>
+                    <li>Vertrieb, Einkauf & Verkauf</li>
+                    <li>Weitere Jobs</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Mode & Beauty</span>
+                <ul class="submenu">
+                    <li>Beauty & Gesundheit</li>
+                    <li>Damenbekleidung</li>
+                    <li>Damenschuhe</li>
+                    <li>Herrenbekleidung</li>
+                    <li>Herrenschuhe</li>
+                    <li>Taschen & Accessoires</li>
+                    <li>Uhren & Schmuck</li>
+                    <li>Weiteres Mode & Beauty</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Musik, Filme & Bücher</span>
+                <ul class="submenu">
+                    <li>Bücher & Zeitschriften</li>
+                    <li>Büro & Schreibwaren</li>
+                    <li>Comics</li>
+                    <li>Fachbücher, Schule & Studium</li>
+                    <li>Film & DVD</li>
+                    <li>Musik & CDs</li>
+                    <li>Musikinstrumente</li>
+                    <li>Weitere Musik, Filme & Bücher</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Haustiere</span>
+                <ul class="submenu">
+                    <li>Fische</li>
+                    <li>Hunde</li>
+                    <li>Katzen</li>
+                    <li>Kleintiere</li>
+                    <li>Nutztiere</li>
+                    <li>Pferde</li>
+                    <li>Tierbetreuung & Training</li>
+                    <li>Vermisste Tiere</li>
+                    <li>Vögel</li>
+                    <li>Zubehör</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Dienstleistungen</span>
+                <ul class="submenu">
+                    <li>Altenpflege</li>
+                    <li>Auto, Rad & Boot</li>
+                    <li>Babysitter & Kinderbetreuung</li>
+                    <li>Elektronik</li>
+                    <li>Haus & Garten</li>
+                    <li>Künstler:in & Musiker:in</li>
+                    <li>Reise & Event</li>
+                    <li>Tierbetreuung & Training</li>
+                    <li>Umzug & Transport</li>
+                    <li>Weitere Dienstleistungen</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Unterricht & Kurse</span>
+                <ul class="submenu">
+                    <li>Beauty & Gesundheit</li>
+                    <li>Computer & IT</li>
+                    <li>Kochen & Backen</li>
+                    <li>Kunst & Gestaltung</li>
+                    <li>Musik & Gesang</li>
+                    <li>Nachhilfe</li>
+                    <li>Sprachkurse</li>
+                    <li>Tanzkurse</li>
+                    <li>Weiterbildung</li>
+                    <li>Weitere Unterricht & Kurse</li>
+                </ul>
+            </li>
+            <li>
+                <span class="category-title" onclick="toggleSubmenu(this)">Zu verschenken & Tauschen</span>
+                <ul class="submenu">
+                    <li>Tauschen</li>
+                    <li>Verschenken</li>
+                </ul>
+            </li>
+            </ul>
+    </aside>
+    
+
+
 </main>
 
 </body>
