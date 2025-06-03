@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Kleinanzeigen Sniper</title>
-    <link rel="stylesheet" href="style.css"> <link rel="icon" type="image/png" href="logo.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="logo.png">
     <script src="script.js" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
@@ -17,10 +18,11 @@
     </div>
 </div>
 
-    <header class="topbar">
+<div id="appContainer" style="display:none;"> <header class="topbar">
         <div class="nav-content">
             <button class="menu-button" onclick="toggleCategoryMenu()" aria-label="Kategorienmenü öffnen">
-                <i class="fas fa-bars"></i> </button>
+                <i class="fas fa-bars"></i>
+            </button>
             <img src="logo.png" alt="Kleinanzeigen Sniper Logo" class="nav-logo" onclick="location.reload()">
             <nav class="nav-links">
                 <a href="#" onclick="quickSearch('RTX 3060')">RTX 3060</a>
@@ -28,13 +30,20 @@
                 <a href="#" onclick="quickSearch('RX 6700 XT')">RX 6700 XT</a>
                 <a href="#" onclick="quickSearch('RTX 3070')">RTX 3070</a>
             </nav>
+            <div class="user-info">
+                <span id="usernameDisplay">Angemeldet als: ...</span>
+                <button onclick="logoutUser()" class="logout-button" title="Abmelden"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
         </div>
     </header>
 
     <main class="wrapper">
         <h1>Kleinanzeigen Sniper</h1>
 
-        <section class="form-section card"> <div class="input-group">
+        <div id="userMessages" class="user-messages" style="display:none;"></div>
+
+        <section class="form-section card">
+            <div class="input-group">
                 <input type="text" id="query" placeholder="z.B. RTX 3080">
                 <input type="text" id="plz" placeholder="PLZ">
                 <div class="select-wrapper">
@@ -62,17 +71,26 @@
                 </div>
                 <div class="input-group">
                     <input type="number" id="pages" placeholder="Seiten (max. 50)">
-                    <input type="email" id="email" placeholder="E-Mail für Benachrichtigung">
+                    <input type="email" id="email" placeholder="E-Mail für Benachrichtigung (noch nicht aktiv)">
                 </div>
 
                 <div class="input-group auto-search-group">
                     <label class="auto-toggle-label">
                         <input type="checkbox" id="autoSearchToggle" onchange="toggleAutoSearch(this)">
                         <span class="custom-checkmark"></span>
-                        Auto-Suche aktivieren
+                        Client-Auto-Suche aktivieren
                     </label>
                     <input type="number" id="autoInterval" placeholder="Intervall (s)" min="5">
                 </div>
+                 <div class="input-group">
+                    <label class="auto-toggle-label" for="saveResultsCheckbox">
+                        <input type="checkbox" id="saveResultsCheckbox">
+                        <span class="custom-checkmark"></span>
+                        Ergebnisse dieser Suche speichern
+                    </label>
+                    <input type="text" id="scrapeSessionName" placeholder="Name für Ergebnis-Session (optional)">
+                </div>
+
 
                 <section class="exclude-section">
                     <h3><i class="fas fa-minus-circle"></i> Wörter ausschließen</h3>
@@ -88,6 +106,18 @@
                 <button class="button-primary" onclick="fetchOffers()"><i class="fas fa-sync-alt"></i> Angebote aktualisieren</button>
                 <button class="button-secondary" onclick="cancelSearch()"><i class="fas fa-times-circle"></i> Suche abbrechen</button>
             </div>
+            <hr class="form-divider">
+            <div class="save-search-actions input-group">
+                <input type="text" id="searchNameToSave" placeholder="Name für aktuelle Suche">
+                <button class="button-save-search" onclick="saveCurrentSearch()"><i class="fas fa-save"></i> Aktuelle Suche speichern</button>
+            </div>
+        </section>
+
+        <section id="savedSearchesSection" class="card" style="display:none;">
+            <h2><i class="fas fa-bookmark"></i> Gespeicherte Suchen</h2>
+            <ul id="savedSearchesList">
+                </ul>
+             <p id="noSavedSearches" style="display:none;">Noch keine Suchen gespeichert.</p>
         </section>
 
         <div id="loader" class="loader" style="display: none;">
@@ -99,202 +129,393 @@
             Ausgewählte Kategorie: <strong id="selectedCategoryNameText"></strong>
             <button id="clearCategoryButton" onclick="clearSelectedCategory()"><i class="fas fa-times"></i> Auswahl aufheben</button>
         </div>
-
+        
         <div id="results">
             </div>
     </main>
 
-    <aside id="categoryMenu" class="category-menu">
-        <ul>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Auto, Rad & Boot <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Autos" data-category-slug="autos" data-category-id="216">Autos</li>
-                    <li onclick="selectCategory(this)" data-category-name="Autoteile & Reifen" data-category-slug="autoteile-reifen" data-category-id="223">Autoteile & Reifen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Boote & Bootszubehör" data-category-slug="boote-bootszubehoer" data-category-id="211">Boote & Bootszubehör</li>
-                    <li onclick="selectCategory(this)" data-category-name="Fahrräder & Zubehör" data-category-slug="fahrraeder-zubehoer" data-category-id="217">Fahrräder & Zubehör</li>
-                    <li onclick="selectCategory(this)" data-category-name="Motorräder & Motorroller" data-category-slug="motorraeder-motorroller" data-category-id="305">Motorräder & Motorroller</li>
-                    <li onclick="selectCategory(this)" data-category-name="Motorradteile & Zubehör" data-category-slug="motorraeder-roller-teile" data-category-id="306">Motorradteile & Zubehör</li>
-                    <li onclick="selectCategory(this)" data-category-name="Nutzfahrzeuge & Anhänger" data-category-slug="nutzfahrzeuge-anhaenger" data-category-id="276">Nutzfahrzeuge & Anhänger</li>
-                    <li onclick="selectCategory(this)" data-category-name="Reparaturen & Dienstleistungen" data-category-slug="reparaturen-dienstleistungen-auto" data-category-id="280">Reparaturen & Dienstleistungen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Wohnwagen & -mobile" data-category-slug="wohnwagen-mobile" data-category-id="220">Wohnwagen & -mobile</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weitere Auto, Rad & Boot" data-category-slug="weitere-auto-rad-boot" data-category-id="241">Weitere Auto, Rad & Boot</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Elektronik <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Audio & HiFi" data-category-slug="audio-hifi" data-category-id="172">Audio & HiFi</li>
-                    <li onclick="selectCategory(this)" data-category-name="Dienstleistungen Elektronik" data-category-slug="dienstleistungen-elektronik" data-category-id="224">Dienstleistungen Elektronik</li>
-                    <li onclick="selectCategory(this)" data-category-name="Foto" data-category-slug="foto" data-category-id="245">Foto</li>
-                    <li onclick="selectCategory(this)" data-category-name="Handy & Telefon" data-category-slug="handy-telefon" data-category-id="173">Handy & Telefon</li>
-                    <li onclick="selectCategory(this)" data-category-name="Haushaltsgeräte" data-category-slug="haushaltsgeraete" data-category-id="176">Haushaltsgeräte</li>
-                    <li onclick="selectCategory(this)" data-category-name="Konsolen" data-category-slug="konsolen" data-category-id="279">Konsolen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Notebooks" data-category-slug="notebooks" data-category-id="282">Notebooks</li>
-                    <li onclick="selectCategory(this)" data-category-name="PC-Hardware & Software" data-category-slug="pc-hardware-software" data-category-id="225">PC-Hardware & Software</li>
-                    <li onclick="selectCategory(this)" data-category-name="PCs" data-category-slug="pcs" data-category-id="228">PCs</li>
-                    <li onclick="selectCategory(this)" data-category-name="Tablets & Reader" data-category-slug="tablets-reader" data-category-id="284">Tablets & Reader</li>
-                    <li onclick="selectCategory(this)" data-category-name="TV & Video" data-category-slug="tv-video" data-category-id="175">TV & Video</li>
-                    <li onclick="selectCategory(this)" data-category-name="Videospiele" data-category-slug="videospiele" data-category-id="227">Videospiele</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weitere Elektronik" data-category-slug="weitere-elektronik" data-category-id="230">Weitere Elektronik</li>
-                </ul>
-            </li>
-             <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Haus & Garten <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Badezimmer" data-category-slug="badezimmer" data-category-id="90">Badezimmer</li>
-                    <li onclick="selectCategory(this)" data-category-name="Büro" data-category-slug="buero" data-category-id="93">Büro</li>
-                    <li onclick="selectCategory(this)" data-category-name="Dekoration" data-category-slug="dekoration" data-category-id="246">Dekoration</li>
-                    <li onclick="selectCategory(this)" data-category-name="Dienstleistungen Haus & Garten" data-category-slug="dienstleistungen-haus-garten" data-category-id="190">Dienstleistungen Haus & Garten</li>
-                    <li onclick="selectCategory(this)" data-category-name="Garten & Pflanzen" data-category-slug="garten-pflanzen" data-category-id="89">Garten & Pflanzen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Heimtextilien" data-category-slug="heimtextilien" data-category-id="209">Heimtextilien</li>
-                    <li onclick="selectCategory(this)" data-category-name="Heizkosten & Erneuerbare Energie" data-category-slug="heizkosten-erneuerbare-energie" data-category-id="270">Heizkosten & Erneuerbare Energie</li>
-                    <li onclick="selectCategory(this)" data-category-name="Küche & Esszimmer" data-category-slug="kueche-esszimmer" data-category-id="86">Küche & Esszimmer</li>
-                    <li onclick="selectCategory(this)" data-category-name="Lampen & Licht" data-category-slug="lampen-licht" data-category-id="240">Lampen & Licht</li>
-                    <li onclick="selectCategory(this)" data-category-name="Schlafzimmer" data-category-slug="schlafzimmer" data-category-id="81">Schlafzimmer</li>
-                    <li onclick="selectCategory(this)" data-category-name="Wohnzimmer" data-category-slug="wohnzimmer" data-category-id="80">Wohnzimmer</li>
-                    <li onclick="selectCategory(this)" data-category-name="Werkzeug & Reparaturen" data-category-slug="werkzeug-reparaturen" data-category-id="281">Werkzeug & Reparaturen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weitere Haus & Garten" data-category-slug="weitere-haus-garten" data-category-id="87">Weitere Haus & Garten</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Familie, Kind & Baby <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Altenpflege" data-category-slug="altenpflege-familie" data-category-id="272">Altenpflege</li>
-                    <li onclick="selectCategory(this)" data-category-name="Baby- & Kinderkleidung" data-category-slug="baby-kinderkleidung" data-category-id="22">Baby- & Kinderkleidung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Baby- & Kinderschuhe" data-category-slug="baby-kinderschuhe" data-category-id="24">Baby- & Kinderschuhe</li>
-                    <li onclick="selectCategory(this)" data-category-name="Baby-Ausstattung" data-category-slug="baby-ausstattung" data-category-id="258">Baby-Ausstattung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Babyschalen & Kindersitze" data-category-slug="babyschalen-kindersitze" data-category-id="239">Babyschalen & Kindersitze</li>
-                    <li onclick="selectCategory(this)" data-category-name="Babysitter & Kinderbetreuung" data-category-slug="babysitter-kinderbetreuung" data-category-id="236">Babysitter & Kinderbetreuung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Kinderwagen & Buggys" data-category-slug="kinderwagen-buggys" data-category-id="250">Kinderwagen & Buggys</li>
-                    <li onclick="selectCategory(this)" data-category-name="Kindermöbel" data-category-slug="kindermoebel" data-category-id="20">Kindermöbel</li>
-                    <li onclick="selectCategory(this)" data-category-name="Spielzeug" data-category-slug="spielzeug" data-category-id="23">Spielzeug</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weiteres Familie, Kind & Baby" data-category-slug="weiteres-familie-kind-baby" data-category-id="21">Weiteres Familie, Kind & Baby</li>
-                </ul>
-            </li>
-             <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Freizeit, Hobby & Nachbarschaft <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Basteln, Handarbeiten & Kunsthandwerk" data-category-slug="basteln-handarbeiten-kunsthandwerk" data-category-id="28">Basteln, Handarbeiten & Kunsthandwerk</li>
-                    <li onclick="selectCategory(this)" data-category-name="Esoterik & Spirituelles" data-category-slug="esoterik-spirituelles" data-category-id="275">Esoterik & Spirituelles</li>
-                    <li onclick="selectCategory(this)" data-category-name="Essen & Trinken" data-category-slug="essen-trinken" data-category-id="233">Essen & Trinken</li>
-                    <li onclick="selectCategory(this)" data-category-name="Freizeitaktivitäten" data-category-slug="freizeitaktivitaeten" data-category-id="185">Freizeitaktivitäten</li>
-                    <li onclick="selectCategory(this)" data-category-name="Kunst & Antiquitäten" data-category-slug="kunst-antiquitaeten" data-category-id="240">Kunst & Antiquitäten</li>
-                    <li onclick="selectCategory(this)" data-category-name="Künstlerbedarf & Künstler-Material" data-category-slug="kuenstlerbedarf-kuenstler-material" data-category-id="242">Künstlerbedarf & Künstler-Material</li>
-                    <li onclick="selectCategory(this)" data-category-name="Modellbau" data-category-slug="modellbau" data-category-id="249">Modellbau</li>
-                    <li onclick="selectCategory(this)" data-category-name="Reise & Eventservices" data-category-slug="reise-eventservices" data-category-id="271">Reise & Eventservices</li>
-                    <li onclick="selectCategory(this)" data-category-name="Sammeln" data-category-slug="sammeln" data-category-id="2 Sammeln">Sammeln</li>
-                    <li onclick="selectCategory(this)" data-category-name="Sport & Camping" data-category-slug="sport-camping" data-category-id="230">Sport & Camping</li>
-                    <li onclick="selectCategory(this)" data-category-name="Tauschen & Verschenken" data-category-slug="tauschen-verschenken-freizeit" data-category-id="273">Tauschen & Verschenken</li>
-                    <li onclick="selectCategory(this)" data-category-name="Verloren & Gefunden" data-category-slug="verloren-gefunden" data-category-id="274">Verloren & Gefunden</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weiteres Freizeit, Hobby & Nachbarschaft" data-category-slug="weiteres-freizeit-hobby-nachbarschaft" data-category-id="234">Weiteres Freizeit, Hobby & Nachbarschaft</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Immobilien <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Auf Zeit & WG" data-category-slug="auf-zeit-wg" data-category-id="199">Auf Zeit & WG</li>
-                    <li onclick="selectCategory(this)" data-category-name="Eigentumswohnungen" data-category-slug="eigentumswohnungen" data-category-id="196">Eigentumswohnungen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Ferien- & Auslandsimmobilien" data-category-slug="ferien-auslandsimmobilien" data-category-id="207">Ferien- & Auslandsimmobilien</li>
-                    <li onclick="selectCategory(this)" data-category-name="Garagen & Stellplätze" data-category-slug="garagen-stellplaetze" data-category-id="206">Garagen & Stellplätze</li>
-                    <li onclick="selectCategory(this)" data-category-name="Gewerbeimmobilien" data-category-slug="gewerbeimmobilien" data-category-id="277">Gewerbeimmobilien</li>
-                    <li onclick="selectCategory(this)" data-category-name="Grundstücke & Gärten" data-category-slug="grundstuecke-gaerten" data-category-id="200">Grundstücke & Gärten</li>
-                    <li onclick="selectCategory(this)" data-category-name="Haus zur Miete" data-category-slug="haus-mieten" data-category-id="205">Haus zur Miete</li>
-                    <li onclick="selectCategory(this)" data-category-name="Haus zum Kauf" data-category-slug="haus-kaufen" data-category-id="208">Haus zum Kauf</li>
-                    <li onclick="selectCategory(this)" data-category-name="Umzug & Transport" data-category-slug="umzug-transport-immobilien" data-category-id="272">Umzug & Transport</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weitere Immobilien" data-category-slug="weitere-immobilien" data-category-id="198">Weitere Immobilien</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Jobs <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Ausbildung" data-category-slug="ausbildung" data-category-id="102">Ausbildung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Bau, Handwerk & Produktion" data-category-slug="bau-handwerk-produktion-jobs" data-category-id="105">Bau, Handwerk & Produktion</li>
-                    <li onclick="selectCategory(this)" data-category-name="Büroarbeit & Verwaltung" data-category-slug="bueroarbeit-verwaltung-jobs" data-category-id="106">Büroarbeit & Verwaltung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Gastronomie & Tourismus" data-category-slug="gastronomie-tourismus-jobs" data-category-id="107">Gastronomie & Tourismus</li>
-                    <li onclick="selectCategory(this)" data-category-name="Kundenservice & Call Center" data-category-slug="kundenservice-call-center-jobs" data-category-id="108">Kundenservice & Call Center</li>
-                    <li onclick="selectCategory(this)" data-category-name="Mini- & Nebenjobs" data-category-slug="mini-nebenjobs" data-category-id="109">Mini- & Nebenjobs</li>
-                    <li onclick="selectCategory(this)" data-category-name="Praktika" data-category-slug="praktika-jobs" data-category-id="110">Praktika</li>
-                    <li onclick="selectCategory(this)" data-category-name="Sozialer Sektor & Pflege" data-category-slug="sozialer-sektor-pflege-jobs" data-category-id="111">Sozialer Sektor & Pflege</li>
-                    <li onclick="selectCategory(this)" data-category-name="Transport, Logistik & Verkehr" data-category-slug="transport-logistik-verkehr-jobs" data-category-id="112">Transport, Logistik & Verkehr</li>
-                    <li onclick="selectCategory(this)" data-category-name="Vertrieb, Einkauf & Verkauf" data-category-slug="vertrieb-einkauf-verkauf-jobs" data-category-id="113">Vertrieb, Einkauf & Verkauf</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weitere Jobs" data-category-slug="weitere-jobs" data-category-id="125">Weitere Jobs</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Mode & Beauty <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Accessoires & Schmuck" data-category-slug="accessoires-schmuck" data-category-id="159">Accessoires & Schmuck</li>
-                    <li onclick="selectCategory(this)" data-category-name="Beauty & Gesundheit" data-category-slug="beauty-gesundheit-mode" data-category-id="160">Beauty & Gesundheit</li>
-                    <li onclick="selectCategory(this)" data-category-name="Damenbekleidung" data-category-slug="damenbekleidung" data-category-id="154">Damenbekleidung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Damenschuhe" data-category-slug="damenschuhe" data-category-id="158">Damenschuhe</li>
-                    <li onclick="selectCategory(this)" data-category-name="Herrenbekleidung" data-category-slug="herrenbekleidung" data-category-id="161">Herrenbekleidung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Herrenschuhe" data-category-slug="herrenschuhe" data-category-id="162">Herrenschuhe</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weiteres Mode & Beauty" data-category-slug="weiteres-mode-beauty" data-category-id="163">Weiteres Mode & Beauty</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Musik, Filme & Bücher <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Bücher & Zeitschriften" data-category-slug="buecher-zeitschriften" data-category-id="76">Bücher & Zeitschriften</li>
-                    <li onclick="selectCategory(this)" data-category-name="Büro & Schreibwaren" data-category-slug="buero-schreibwaren-musik" data-category-id="77">Büro & Schreibwaren</li>
-                    <li onclick="selectCategory(this)" data-category-name="Comics" data-category-slug="comics" data-category-id="78">Comics</li>
-                    <li onclick="selectCategory(this)" data-category-name="Fachbücher, Schule & Studium" data-category-slug="fachbuecher-schule-studium" data-category-id="79">Fachbücher, Schule & Studium</li>
-                    <li onclick="selectCategory(this)" data-category-name="Film & DVD" data-category-slug="film-dvd" data-category-id="75">Film & DVD</li>
-                    <li onclick="selectCategory(this)" data-category-name="Musik & CDs" data-category-slug="musik-cds" data-category-id="74">Musik & CDs</li>
-                    <li onclick="selectCategory(this)" data-category-name="Musikinstrumente" data-category-slug="musikinstrumente" data-category-id="73">Musikinstrumente</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weitere Musik, Filme & Bücher" data-category-slug="weitere-musik-filme-buecher" data-category-id="80">Weitere Musik, Filme & Bücher</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Haustiere <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Fische" data-category-slug="fische" data-category-id="132">Fische</li>
-                    <li onclick="selectCategory(this)" data-category-name="Hunde" data-category-slug="hunde" data-category-id="134">Hunde</li>
-                    <li onclick="selectCategory(this)" data-category-name="Katzen" data-category-slug="katzen" data-category-id="136">Katzen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Kleintiere" data-category-slug="kleintiere" data-category-id="135">Kleintiere</li>
-                    <li onclick="selectCategory(this)" data-category-name="Nutztiere" data-category-slug="nutztiere" data-category-id="139">Nutztiere</li>
-                    <li onclick="selectCategory(this)" data-category-name="Pferde" data-category-slug="pferde" data-category-id="138">Pferde</li>
-                    <li onclick="selectCategory(this)" data-category-name="Tierbetreuung & Training" data-category-slug="tierbetreuung-training-haustiere" data-category-id="298">Tierbetreuung & Training</li>
-                    <li onclick="selectCategory(this)" data-category-name="Vermisste Tiere" data-category-slug="vermisste-tiere" data-category-id="287">Vermisste Tiere</li>
-                    <li onclick="selectCategory(this)" data-category-name="Vögel" data-category-slug="voegel" data-category-id="131">Vögel</li>
-                    <li onclick="selectCategory(this)" data-category-name="Zubehör" data-category-slug="zubehoer-haustiere" data-category-id="130">Zubehör</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Dienstleistungen <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Handwerk & Hausbau" data-category-slug="handwerk-hausbau-dienstleistungen" data-category-id="299">Handwerk & Hausbau</li>
-                    <li onclick="selectCategory(this)" data-category-name="Künstler & Musiker" data-category-slug="kuenstler-musiker-dienstleistungen" data-category-id="191">Künstler & Musiker</li>
-                    <li onclick="selectCategory(this)" data-category-name="Reise & Event" data-category-slug="reise-event-dienstleistungen" data-category-id="192">Reise & Event</li>
-                    <li onclick="selectCategory(this)" data-category-name="Transport & Logistik" data-category-slug="transport-logistik-dienstleistungen" data-category-id="193">Transport & Logistik</li>
-                    <li onclick="selectCategory(this)" data-category-name="Umzug & Transport" data-category-slug="umzug-transport-dienstleistungen" data-category-id="194">Umzug & Transport</li>
-                     <li onclick="selectCategory(this)" data-category-name="Weitere Dienstleistungen" data-category-slug="weitere-dienstleistungen" data-category-id="195">Weitere Dienstleistungen</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Unterricht & Kurse <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Beauty & Gesundheit" data-category-slug="unterricht-beauty-gesundheit" data-category-id="237">Beauty & Gesundheit</li>
-                    <li onclick="selectCategory(this)" data-category-name="Computer & IT" data-category-slug="unterricht-computer-it" data-category-id="238">Computer & IT</li>
-                    <li onclick="selectCategory(this)" data-category-name="Kochen & Backen" data-category-slug="unterricht-kochen-backen" data-category-id="239">Kochen & Backen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Kunst & Gestaltung" data-category-slug="unterricht-kunst-gestaltung" data-category-id="240">Kunst & Gestaltung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Musik & Gesang" data-category-slug="unterricht-musik-gesang" data-category-id="241">Musik & Gesang</li>
-                    <li onclick="selectCategory(this)" data-category-name="Nachhilfe" data-category-slug="nachhilfe" data-category-id="199">Nachhilfe</li>
-                    <li onclick="selectCategory(this)" data-category-name="Sprachkurse" data-category-slug="sprachkurse" data-category-id="235">Sprachkurse</li>
-                    <li onclick="selectCategory(this)" data-category-name="Tanzkurse" data-category-slug="tanzkurse" data-category-id="242">Tanzkurse</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weiterbildung" data-category-slug="weiterbildung" data-category-id="243">Weiterbildung</li>
-                    <li onclick="selectCategory(this)" data-category-name="Weitere Unterricht & Kurse" data-category-slug="weitere-unterricht-kurse" data-category-id="244">Weitere Unterricht & Kurse</li>
-                </ul>
-            </li>
-            <li>
-                <span class="category-title" onclick="toggleSubmenu(this)">Zu verschenken & Tauschen <i class="fas fa-chevron-down"></i></span>
-                <ul class="submenu">
-                    <li onclick="selectCategory(this)" data-category-name="Tauschen" data-category-slug="tauschen" data-category-id="273">Tauschen</li>
-                    <li onclick="selectCategory(this)" data-category-name="Verschenken" data-category-slug="zu-verschenken" data-category-id="258">Verschenken</li>
-                </ul>
-            </li>
-        </ul>
-    </aside>
-</body>
+       <aside id="categoryMenu" class="category-menu">
+
+        <ul>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Auto, Rad & Boot <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Autos" data-category-slug="autos" data-category-id="216">Autos</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Autoteile & Reifen" data-category-slug="autoteile-reifen" data-category-id="223">Autoteile & Reifen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Boote & Bootszubehör" data-category-slug="boote-bootszubehoer" data-category-id="211">Boote & Bootszubehör</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Fahrräder & Zubehör" data-category-slug="fahrraeder-zubehoer" data-category-id="217">Fahrräder & Zubehör</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Motorräder & Motorroller" data-category-slug="motorraeder-motorroller" data-category-id="305">Motorräder & Motorroller</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Motorradteile & Zubehör" data-category-slug="motorraeder-roller-teile" data-category-id="306">Motorradteile & Zubehör</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Nutzfahrzeuge & Anhänger" data-category-slug="nutzfahrzeuge-anhaenger" data-category-id="276">Nutzfahrzeuge & Anhänger</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Reparaturen & Dienstleistungen" data-category-slug="reparaturen-dienstleistungen-auto" data-category-id="280">Reparaturen & Dienstleistungen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Wohnwagen & -mobile" data-category-slug="wohnwagen-mobile" data-category-id="220">Wohnwagen & -mobile</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weitere Auto, Rad & Boot" data-category-slug="weitere-auto-rad-boot" data-category-id="241">Weitere Auto, Rad & Boot</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Elektronik <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Audio & HiFi" data-category-slug="audio-hifi" data-category-id="172">Audio & HiFi</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Dienstleistungen Elektronik" data-category-slug="dienstleistungen-elektronik" data-category-id="224">Dienstleistungen Elektronik</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Foto" data-category-slug="foto" data-category-id="245">Foto</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Handy & Telefon" data-category-slug="handy-telefon" data-category-id="173">Handy & Telefon</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Haushaltsgeräte" data-category-slug="haushaltsgeraete" data-category-id="176">Haushaltsgeräte</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Konsolen" data-category-slug="konsolen" data-category-id="279">Konsolen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Notebooks" data-category-slug="notebooks" data-category-id="282">Notebooks</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="PC-Hardware & Software" data-category-slug="pc-hardware-software" data-category-id="225">PC-Hardware & Software</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="PCs" data-category-slug="pcs" data-category-id="228">PCs</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Tablets & Reader" data-category-slug="tablets-reader" data-category-id="284">Tablets & Reader</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="TV & Video" data-category-slug="tv-video" data-category-id="175">TV & Video</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Videospiele" data-category-slug="videospiele" data-category-id="227">Videospiele</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weitere Elektronik" data-category-slug="weitere-elektronik" data-category-id="230">Weitere Elektronik</li>
+
+                </ul>
+
+            </li>
+
+             <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Haus & Garten <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Badezimmer" data-category-slug="badezimmer" data-category-id="90">Badezimmer</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Büro" data-category-slug="buero" data-category-id="93">Büro</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Dekoration" data-category-slug="dekoration" data-category-id="246">Dekoration</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Dienstleistungen Haus & Garten" data-category-slug="dienstleistungen-haus-garten" data-category-id="190">Dienstleistungen Haus & Garten</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Garten & Pflanzen" data-category-slug="garten-pflanzen" data-category-id="89">Garten & Pflanzen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Heimtextilien" data-category-slug="heimtextilien" data-category-id="209">Heimtextilien</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Heizkosten & Erneuerbare Energie" data-category-slug="heizkosten-erneuerbare-energie" data-category-id="270">Heizkosten & Erneuerbare Energie</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Küche & Esszimmer" data-category-slug="kueche-esszimmer" data-category-id="86">Küche & Esszimmer</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Lampen & Licht" data-category-slug="lampen-licht" data-category-id="240">Lampen & Licht</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Schlafzimmer" data-category-slug="schlafzimmer" data-category-id="81">Schlafzimmer</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Wohnzimmer" data-category-slug="wohnzimmer" data-category-id="80">Wohnzimmer</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Werkzeug & Reparaturen" data-category-slug="werkzeug-reparaturen" data-category-id="281">Werkzeug & Reparaturen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weitere Haus & Garten" data-category-slug="weitere-haus-garten" data-category-id="87">Weitere Haus & Garten</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Familie, Kind & Baby <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Altenpflege" data-category-slug="altenpflege-familie" data-category-id="272">Altenpflege</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Baby- & Kinderkleidung" data-category-slug="baby-kinderkleidung" data-category-id="22">Baby- & Kinderkleidung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Baby- & Kinderschuhe" data-category-slug="baby-kinderschuhe" data-category-id="24">Baby- & Kinderschuhe</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Baby-Ausstattung" data-category-slug="baby-ausstattung" data-category-id="258">Baby-Ausstattung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Babyschalen & Kindersitze" data-category-slug="babyschalen-kindersitze" data-category-id="239">Babyschalen & Kindersitze</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Babysitter & Kinderbetreuung" data-category-slug="babysitter-kinderbetreuung" data-category-id="236">Babysitter & Kinderbetreuung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Kinderwagen & Buggys" data-category-slug="kinderwagen-buggys" data-category-id="250">Kinderwagen & Buggys</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Kindermöbel" data-category-slug="kindermoebel" data-category-id="20">Kindermöbel</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Spielzeug" data-category-slug="spielzeug" data-category-id="23">Spielzeug</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weiteres Familie, Kind & Baby" data-category-slug="weiteres-familie-kind-baby" data-category-id="21">Weiteres Familie, Kind & Baby</li>
+
+                </ul>
+
+            </li>
+
+             <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Freizeit, Hobby & Nachbarschaft <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Basteln, Handarbeiten & Kunsthandwerk" data-category-slug="basteln-handarbeiten-kunsthandwerk" data-category-id="28">Basteln, Handarbeiten & Kunsthandwerk</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Esoterik & Spirituelles" data-category-slug="esoterik-spirituelles" data-category-id="275">Esoterik & Spirituelles</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Essen & Trinken" data-category-slug="essen-trinken" data-category-id="233">Essen & Trinken</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Freizeitaktivitäten" data-category-slug="freizeitaktivitaeten" data-category-id="185">Freizeitaktivitäten</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Kunst & Antiquitäten" data-category-slug="kunst-antiquitaeten" data-category-id="240">Kunst & Antiquitäten</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Künstlerbedarf & Künstler-Material" data-category-slug="kuenstlerbedarf-kuenstler-material" data-category-id="242">Künstlerbedarf & Künstler-Material</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Modellbau" data-category-slug="modellbau" data-category-id="249">Modellbau</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Reise & Eventservices" data-category-slug="reise-eventservices" data-category-id="271">Reise & Eventservices</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Sammeln" data-category-slug="sammeln" data-category-id="2 Sammeln">Sammeln</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Sport & Camping" data-category-slug="sport-camping" data-category-id="230">Sport & Camping</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Tauschen & Verschenken" data-category-slug="tauschen-verschenken-freizeit" data-category-id="273">Tauschen & Verschenken</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Verloren & Gefunden" data-category-slug="verloren-gefunden" data-category-id="274">Verloren & Gefunden</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weiteres Freizeit, Hobby & Nachbarschaft" data-category-slug="weiteres-freizeit-hobby-nachbarschaft" data-category-id="234">Weiteres Freizeit, Hobby & Nachbarschaft</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Immobilien <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Auf Zeit & WG" data-category-slug="auf-zeit-wg" data-category-id="199">Auf Zeit & WG</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Eigentumswohnungen" data-category-slug="eigentumswohnungen" data-category-id="196">Eigentumswohnungen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Ferien- & Auslandsimmobilien" data-category-slug="ferien-auslandsimmobilien" data-category-id="207">Ferien- & Auslandsimmobilien</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Garagen & Stellplätze" data-category-slug="garagen-stellplaetze" data-category-id="206">Garagen & Stellplätze</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Gewerbeimmobilien" data-category-slug="gewerbeimmobilien" data-category-id="277">Gewerbeimmobilien</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Grundstücke & Gärten" data-category-slug="grundstuecke-gaerten" data-category-id="200">Grundstücke & Gärten</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Haus zur Miete" data-category-slug="haus-mieten" data-category-id="205">Haus zur Miete</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Haus zum Kauf" data-category-slug="haus-kaufen" data-category-id="208">Haus zum Kauf</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Umzug & Transport" data-category-slug="umzug-transport-immobilien" data-category-id="272">Umzug & Transport</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weitere Immobilien" data-category-slug="weitere-immobilien" data-category-id="198">Weitere Immobilien</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Jobs <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Ausbildung" data-category-slug="ausbildung" data-category-id="102">Ausbildung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Bau, Handwerk & Produktion" data-category-slug="bau-handwerk-produktion-jobs" data-category-id="105">Bau, Handwerk & Produktion</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Büroarbeit & Verwaltung" data-category-slug="bueroarbeit-verwaltung-jobs" data-category-id="106">Büroarbeit & Verwaltung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Gastronomie & Tourismus" data-category-slug="gastronomie-tourismus-jobs" data-category-id="107">Gastronomie & Tourismus</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Kundenservice & Call Center" data-category-slug="kundenservice-call-center-jobs" data-category-id="108">Kundenservice & Call Center</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Mini- & Nebenjobs" data-category-slug="mini-nebenjobs" data-category-id="109">Mini- & Nebenjobs</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Praktika" data-category-slug="praktika-jobs" data-category-id="110">Praktika</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Sozialer Sektor & Pflege" data-category-slug="sozialer-sektor-pflege-jobs" data-category-id="111">Sozialer Sektor & Pflege</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Transport, Logistik & Verkehr" data-category-slug="transport-logistik-verkehr-jobs" data-category-id="112">Transport, Logistik & Verkehr</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Vertrieb, Einkauf & Verkauf" data-category-slug="vertrieb-einkauf-verkauf-jobs" data-category-id="113">Vertrieb, Einkauf & Verkauf</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weitere Jobs" data-category-slug="weitere-jobs" data-category-id="125">Weitere Jobs</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Mode & Beauty <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Accessoires & Schmuck" data-category-slug="accessoires-schmuck" data-category-id="159">Accessoires & Schmuck</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Beauty & Gesundheit" data-category-slug="beauty-gesundheit-mode" data-category-id="160">Beauty & Gesundheit</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Damenbekleidung" data-category-slug="damenbekleidung" data-category-id="154">Damenbekleidung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Damenschuhe" data-category-slug="damenschuhe" data-category-id="158">Damenschuhe</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Herrenbekleidung" data-category-slug="herrenbekleidung" data-category-id="161">Herrenbekleidung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Herrenschuhe" data-category-slug="herrenschuhe" data-category-id="162">Herrenschuhe</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weiteres Mode & Beauty" data-category-slug="weiteres-mode-beauty" data-category-id="163">Weiteres Mode & Beauty</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Musik, Filme & Bücher <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Bücher & Zeitschriften" data-category-slug="buecher-zeitschriften" data-category-id="76">Bücher & Zeitschriften</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Büro & Schreibwaren" data-category-slug="buero-schreibwaren-musik" data-category-id="77">Büro & Schreibwaren</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Comics" data-category-slug="comics" data-category-id="78">Comics</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Fachbücher, Schule & Studium" data-category-slug="fachbuecher-schule-studium" data-category-id="79">Fachbücher, Schule & Studium</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Film & DVD" data-category-slug="film-dvd" data-category-id="75">Film & DVD</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Musik & CDs" data-category-slug="musik-cds" data-category-id="74">Musik & CDs</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Musikinstrumente" data-category-slug="musikinstrumente" data-category-id="73">Musikinstrumente</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weitere Musik, Filme & Bücher" data-category-slug="weitere-musik-filme-buecher" data-category-id="80">Weitere Musik, Filme & Bücher</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Haustiere <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Fische" data-category-slug="fische" data-category-id="132">Fische</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Hunde" data-category-slug="hunde" data-category-id="134">Hunde</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Katzen" data-category-slug="katzen" data-category-id="136">Katzen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Kleintiere" data-category-slug="kleintiere" data-category-id="135">Kleintiere</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Nutztiere" data-category-slug="nutztiere" data-category-id="139">Nutztiere</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Pferde" data-category-slug="pferde" data-category-id="138">Pferde</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Tierbetreuung & Training" data-category-slug="tierbetreuung-training-haustiere" data-category-id="298">Tierbetreuung & Training</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Vermisste Tiere" data-category-slug="vermisste-tiere" data-category-id="287">Vermisste Tiere</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Vögel" data-category-slug="voegel" data-category-id="131">Vögel</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Zubehör" data-category-slug="zubehoer-haustiere" data-category-id="130">Zubehör</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Dienstleistungen <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Handwerk & Hausbau" data-category-slug="handwerk-hausbau-dienstleistungen" data-category-id="299">Handwerk & Hausbau</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Künstler & Musiker" data-category-slug="kuenstler-musiker-dienstleistungen" data-category-id="191">Künstler & Musiker</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Reise & Event" data-category-slug="reise-event-dienstleistungen" data-category-id="192">Reise & Event</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Transport & Logistik" data-category-slug="transport-logistik-dienstleistungen" data-category-id="193">Transport & Logistik</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Umzug & Transport" data-category-slug="umzug-transport-dienstleistungen" data-category-id="194">Umzug & Transport</li>
+
+                     <li onclick="selectCategory(this)" data-category-name="Weitere Dienstleistungen" data-category-slug="weitere-dienstleistungen" data-category-id="195">Weitere Dienstleistungen</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Unterricht & Kurse <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Beauty & Gesundheit" data-category-slug="unterricht-beauty-gesundheit" data-category-id="237">Beauty & Gesundheit</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Computer & IT" data-category-slug="unterricht-computer-it" data-category-id="238">Computer & IT</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Kochen & Backen" data-category-slug="unterricht-kochen-backen" data-category-id="239">Kochen & Backen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Kunst & Gestaltung" data-category-slug="unterricht-kunst-gestaltung" data-category-id="240">Kunst & Gestaltung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Musik & Gesang" data-category-slug="unterricht-musik-gesang" data-category-id="241">Musik & Gesang</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Nachhilfe" data-category-slug="nachhilfe" data-category-id="199">Nachhilfe</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Sprachkurse" data-category-slug="sprachkurse" data-category-id="235">Sprachkurse</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Tanzkurse" data-category-slug="tanzkurse" data-category-id="242">Tanzkurse</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weiterbildung" data-category-slug="weiterbildung" data-category-id="243">Weiterbildung</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Weitere Unterricht & Kurse" data-category-slug="weitere-unterricht-kurse" data-category-id="244">Weitere Unterricht & Kurse</li>
+
+                </ul>
+
+            </li>
+
+            <li>
+
+                <span class="category-title" onclick="toggleSubmenu(this)">Zu verschenken & Tauschen <i class="fas fa-chevron-down"></i></span>
+
+                <ul class="submenu">
+
+                    <li onclick="selectCategory(this)" data-category-name="Tauschen" data-category-slug="tauschen" data-category-id="273">Tauschen</li>
+
+                    <li onclick="selectCategory(this)" data-category-name="Verschenken" data-category-slug="zu-verschenken" data-category-id="258">Verschenken</li>
+
+                </ul>
+
+            </li>
+
+        </ul>
+
+    </aside>
+</div> </body>
 </html>

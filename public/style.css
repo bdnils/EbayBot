@@ -10,6 +10,8 @@
     --border-color-light: #e5e5e7;
     --success-color: #34c759;
     --error-color: #ff3b30;
+    --warning-color: #ffcc00; /* Für Aktionen wie Löschen */
+    --warning-color-dark: #dda700;
     --neutral-bg: #e9e9eb; /* Neutraler Hintergrund für Buttons, etc. */
 
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -34,7 +36,11 @@ body {
     background-color: var(--background-color);
     color: var(--secondary-color);
     line-height: 1.6;
-    padding-top: 80px; /* Platz für die sticky Topbar */
+    padding-top: 60px; /* Feste Höhe der Topbar */
+}
+
+body.category-menu-open { /* Um Scrollen zu verhindern, wenn Menü offen ist */
+    overflow: hidden;
 }
 
 .wrapper {
@@ -44,15 +50,27 @@ body {
 }
 
 h1 {
-    font-size: 2.5rem; /* 40px */
+    font-size: 2.5rem;
     font-weight: 600;
     text-align: center;
     margin-bottom: 30px;
     color: var(--secondary-color);
 }
 
+h2 { /* Styling für neue Sektionsüberschriften */
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border-color-light);
+    padding-bottom: 10px;
+}
+
 h3 {
-    font-size: 1.25rem; /* 20px */
+    font-size: 1.25rem;
     font-weight: 600;
     margin-bottom: 15px;
     display: flex;
@@ -62,7 +80,7 @@ h3 {
 
 /* Topbar */
 .topbar {
-    position: fixed; /* Geändert von sticky zu fixed für klareres Verhalten */
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
@@ -71,46 +89,50 @@ h3 {
     -webkit-backdrop-filter: blur(12px) saturate(180%);
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     z-index: 1000;
-    padding: 0 20px; /* Padding für den gesamten Balken */
+    padding: 0 20px;
 }
 
 .nav-content {
     display: flex;
     align-items: center;
-    justify-content: space-between; /* Bessere Verteilung */
-    max-width: 1200px; /* Etwas breiter für moderne Layouts */
+    justify-content: space-between;
+    max-width: 1200px;
     margin: 0 auto;
-    height: 60px; /* Feste Höhe */
+    height: 60px;
 }
 
-.menu-button {
+.menu-button, .logout-button {
     background: none;
     border: none;
-    font-size: 1.5rem; /* 24px */
+    font-size: 1.3rem;
     color: var(--secondary-color);
     cursor: pointer;
-    padding: 10px;
+    padding: 8px;
     border-radius: var(--border-radius-small);
     transition: background-color var(--transition-fast);
-    display: flex; /* Für Icon-Zentrierung */
+    display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.menu-button:hover {
+.menu-button:hover, .logout-button:hover {
     background-color: var(--border-color-light);
 }
 
 .nav-logo {
-    height: 36px; /* Etwas kleiner für feineren Look */
+    height: 36px;
     cursor: pointer;
-    margin-left: -10px; /* Korrigiert den Abstand, wenn Menü-Button vorhanden ist */
+}
+
+.nav-links {
+    flex-grow: 1;
+    text-align: center;
 }
 
 .nav-links a {
-    margin-left: 20px;
+    margin: 0 10px;
     text-decoration: none;
-    font-size: 0.95rem; /* 15.2px */
+    font-size: 0.95rem;
     font-weight: 500;
     color: var(--secondary-color);
     padding: 8px 12px;
@@ -123,8 +145,20 @@ h3 {
     color: var(--primary-color);
 }
 
-/* Formular Sektion */
-.form-section.card {
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+#usernameDisplay {
+    font-size: 0.9rem;
+    color: var(--secondary-color);
+    opacity: 0.8;
+}
+
+/* Formular Sektion & Karten Allgemein */
+.form-section.card, #savedSearchesSection.card {
     background-color: var(--content-background);
     padding: 25px;
     border-radius: var(--border-radius-large);
@@ -137,17 +171,19 @@ h3 {
     display: flex;
     gap: 15px;
     margin-bottom: 20px;
-    flex-wrap: wrap; /* Erlaubt Umbruch auf kleineren Bildschirmen */
+    flex-wrap: wrap;
+}
+.input-group > * {
+    flex: 1 1 auto;
 }
 
 .input-group input[type="text"],
 .input-group input[type="number"],
 .input-group input[type="email"],
 .select-wrapper select {
-    flex-grow: 1; /* Felder füllen den verfügbaren Platz */
-    min-width: 180px; /* Mindestbreite bevor Umbruch */
+    min-width: 180px; 
     padding: 12px 15px;
-    font-size: 1rem; /* 16px */
+    font-size: 1rem;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-medium);
     background-color: var(--background-color);
@@ -156,12 +192,11 @@ h3 {
 }
 .select-wrapper {
     position: relative;
-    flex-grow: 1;
     min-width: 180px;
 }
 
-.select-wrapper::after { /* Custom Pfeil für Select */
-    content: '\f078'; /* Font Awesome chevron-down */
+.select-wrapper::after {
+    content: '\f078'; 
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
     position: absolute;
@@ -186,14 +221,20 @@ h3 {
 .input-group input[type="email"]:focus,
 .select-wrapper select:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2); /* Fokus-Indikator */
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2);
     background-color: var(--content-background);
+}
+
+.form-divider {
+    border: none;
+    border-top: 1px solid var(--border-color-light);
+    margin: 25px 0;
 }
 
 
 /* Toggle Filter Button */
 .toggle-filters-button {
-    display: flex; /* Für Icon und Text */
+    display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
@@ -207,35 +248,32 @@ h3 {
     border-radius: var(--border-radius-medium);
     cursor: pointer;
     transition: background-color var(--transition-medium);
-    margin-bottom: 20px; /* Abstand zum Filterbereich */
+    margin-bottom: 20px;
 }
 
 .toggle-filters-button:hover {
     background-color: var(--border-color-light);
 }
-
 .toggle-filters-button .filter-arrow {
     transition: transform var(--transition-medium);
 }
-
 .toggle-filters-button.open .filter-arrow {
     transform: rotate(180deg);
 }
-
 
 /* Erweiterte Filter - Animierbar */
 #advanced-filters {
     opacity: 1;
     visibility: visible;
-    max-height: 1000px; /* Ausreichend groß für Inhalt */
+    max-height: 1000px;
     overflow: hidden;
     transition: opacity var(--transition-medium) ease-out, 
                 max-height var(--transition-medium) ease-out,
                 margin-top var(--transition-medium) ease-out,
                 margin-bottom var(--transition-medium) ease-out,
                 visibility 0s linear 0s;
-    margin-top: 0; /* Sicherstellen, dass es im geschlossenen Zustand keinen Margin hat */
-    margin-bottom: 20px; /* Abstand, wenn offen */
+    margin-top: 0;
+    margin-bottom: 20px;
 }
 
 #advanced-filters.hidden {
@@ -244,9 +282,9 @@ h3 {
     max-height: 0;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
-    padding-top: 0 !important; /* Falls es Padding hat */
+    padding-top: 0 !important;
     padding-bottom: 0 !important;
-    border-width: 0 !important; /* Falls es Border hat */
+    border-width: 0 !important;
     transition: opacity var(--transition-medium) ease-in, 
                 max-height var(--transition-medium) ease-in,
                 margin-top var(--transition-medium) ease-in,
@@ -254,12 +292,12 @@ h3 {
                 padding-top var(--transition-medium) ease-in,
                 padding-bottom var(--transition-medium) ease-in,
                 border-width var(--transition-medium) ease-in,
-                visibility 0s linear var(--transition-medium); /* Verzögert visibility */
+                visibility 0s linear var(--transition-medium);
 }
 
-
-/* Auto-Suche Checkbox */
-.auto-search-group {
+/* Auto-Suche & Save-Results Checkboxen */
+.auto-search-group,
+.input-group .auto-toggle-label {
     align-items: center;
 }
 .auto-toggle-label {
@@ -269,7 +307,9 @@ h3 {
     font-size: 0.95rem;
     user-select: none;
     position: relative;
-    padding-left: 30px; /* Platz für custom Checkbox */
+    padding-left: 30px; 
+    margin-right: 10px;
+    flex-shrink: 0;
 }
 
 .auto-toggle-label input[type="checkbox"] {
@@ -315,21 +355,16 @@ h3 {
     display: block;
 }
 
-#autoInterval {
-    width: 120px; /* Etwas mehr Platz */
-    opacity: 0.5; /* Standardmäßig ausgegraut */
+#autoInterval, #scrapeSessionName {
+    width: auto;
+    min-width: 150px;
+    opacity: 0.5; 
     transition: opacity var(--transition-medium);
 }
-
-#autoSearchToggle:checked ~ #autoInterval, /* JS muss ggf. `disabled` Attribut steuern für Funktionalität */
-.auto-toggle-label input[type="checkbox"]:checked + #autoInterval { /* Funktioniert nur wenn #autoInterval direkt nach Checkbox im DOM wäre */
+#autoInterval:not(:disabled),
+#scrapeSessionName:not(:disabled) {
     opacity: 1;
 }
-/* JS steuert input.disabled; dieses CSS nur für Optik, wenn JS Intervall-Input aktiviert */
-#autoInterval:not(:disabled) {
-    opacity: 1;
-}
-
 
 /* Wortliste ausschließen */
 .exclude-section {
@@ -337,30 +372,26 @@ h3 {
     padding-top: 20px;
     border-top: 1px solid var(--border-color-light);
 }
-
 .word-list {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 15px;
 }
-
 .word-list span {
     padding: 6px 12px;
     border: 1px solid var(--border-color);
-    border-radius: 15px; /* Pill-shape */
+    border-radius: 15px;
     cursor: pointer;
     background-color: var(--content-background);
     color: var(--secondary-color);
     font-size: 0.9rem;
     transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
-
 .word-list span:hover {
     border-color: var(--primary-color);
     color: var(--primary-color);
 }
-
 .word-list span.active {
     background-color: var(--primary-color);
     color: var(--light-text-color);
@@ -380,16 +411,17 @@ h3 {
     display: flex;
     align-items: center;
     gap: 6px;
+    min-width: auto;
+    flex-grow: 0;
 }
 .button-add:hover {
-    background-color: #28a745; /* Dunkleres Grün */
+    background-color: #28a745;
 }
 
-
-/* Formular Buttons */
+/* Formular Buttons & Speicher-Button für Suchen */
 .form-actions {
     display: flex;
-    justify-content: center; /* Buttons zentrieren */
+    justify-content: center;
     gap: 15px;
     margin-top: 25px;
     padding-top: 20px;
@@ -397,7 +429,11 @@ h3 {
     flex-wrap: wrap;
 }
 
-.button-primary, .button-secondary {
+.save-search-actions { /* Bereits von .input-group gestyled */
+    margin-top: 20px; /* Eigener Abstand nach oben */
+}
+
+.button-primary, .button-secondary, .button-save-search {
     padding: 12px 25px;
     font-size: 1rem;
     font-weight: 500;
@@ -407,7 +443,10 @@ h3 {
     transition: background-color var(--transition-fast), transform var(--transition-fast);
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
+    flex-grow: 0;
+    flex-shrink: 0;
 }
 
 .button-primary {
@@ -429,10 +468,112 @@ h3 {
     transform: translateY(-2px);
 }
 
+.button-save-search {
+    background-color: var(--success-color);
+    color: white;
+    min-width: auto; /* Verhindert übermäßiges Strecken */
+    flex-grow: 0;
+}
+.button-save-search:hover {
+    background-color: #28a745;
+    transform: translateY(-2px);
+}
+
+#searchNameToSave {
+    margin-bottom: 0;
+}
+
+/* Bereich für gespeicherte Suchen */
+#savedSearchesSection {
+    margin-top: 30px;
+}
+
+#savedSearchesList {
+    list-style: none;
+    padding: 0;
+}
+
+#savedSearchesList li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color-light);
+    transition: background-color var(--transition-fast);
+}
+#savedSearchesList li:last-child {
+    border-bottom: none;
+}
+#savedSearchesList li:hover {
+    background-color: var(--neutral-bg);
+}
+
+#savedSearchesList .search-name {
+    font-weight: 500;
+    color: var(--secondary-color);
+    flex-grow: 1;
+}
+#savedSearchesList small {
+    margin-left: 15px;
+    font-size: 0.85rem;
+    color: #666;
+    flex-shrink: 0;
+}
+#savedSearchesList .search-actions {
+    margin-left: 20px;
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+#savedSearchesList .search-actions button {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    border-radius: var(--border-radius-small);
+    background: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+#savedSearchesList .search-actions button:hover {
+    transform: translateY(-1px);
+}
+#savedSearchesList .search-actions button i {
+    font-size: 0.9em;
+}
+
+#savedSearchesList .search-actions button[onclick*="applySavedSearch"] {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+#savedSearchesList .search-actions button[onclick*="applySavedSearch"]:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+#savedSearchesList .search-actions button[onclick*="deleteSavedSearch"] {
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+#savedSearchesList .search-actions button[onclick*="deleteSavedSearch"]:hover {
+    background-color: var(--error-color);
+    color: white;
+}
+
+#noSavedSearches {
+    text-align: center;
+    padding: 20px;
+    color: #777;
+    font-style: italic;
+}
+
 
 /* Loader */
 .loader {
-    display: flex; /* Wird per JS gesteuert */
+    display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
@@ -461,12 +602,12 @@ h3 {
     padding: 12px 20px;
     border-radius: var(--border-radius-medium);
     box-shadow: var(--shadow-soft);
-    margin: 0 auto 25px auto; /* Zentriert und mit Abstand */
-    max-width: 800px; /* Konsistent mit Results-Container */
-    display: flex; /* Wird per JS umgeschaltet */
+    margin: 0 auto 25px auto;
+    max-width: 800px;
+    display: flex;
     justify-content: space-between;
     align-items: center;
-    border: 1px solid var(--primary-color); /* Akzent-Border */
+    border: 1px solid var(--primary-color);
 }
 .selected-category-info strong {
     color: var(--primary-color);
@@ -485,27 +626,54 @@ h3 {
     gap: 6px;
 }
 #clearCategoryButton:hover {
-    background-color: #d92a22; /* Dunkleres Rot */
+    background-color: #d92a22;
 }
 
 
-/* Ergebnisse */
+/* User Messages (Feedback für Aktionen) */
+.user-messages {
+    padding: 15px;
+    margin: 0 auto 20px auto;
+    max-width: 800px;
+    border-radius: var(--border-radius-medium);
+    text-align: center;
+    font-weight: 500;
+    box-shadow: var(--shadow-soft);
+    display: none; /* Wird per JS gesteuert */
+}
+.user-messages.success {
+    background-color: var(--success-color);
+    color: white;
+    border: 1px solid #28a745;
+}
+.user-messages.error {
+    background-color: var(--error-color);
+    color: white;
+    border: 1px solid #d92a22;
+}
+.user-messages.warning { /* Falls du einen Warnungstyp brauchst */
+    background-color: var(--warning-color);
+    color: var(--secondary-color);
+    border: 1px solid var(--warning-color-dark);
+}
+
+
+/* Ergebnisse & Ergebniskarten */
 #results {
     display: grid;
-    grid-template-columns: 1fr; /* Standardmäßig eine Spalte */
+    grid-template-columns: 1fr;
     gap: 20px;
     max-width: 800px;
-    margin: 0 auto; /* Zentriert den Results-Container */
+    margin: 0 auto;
 }
 
-/* Ergebnisse Karten */
-.card { /* Allgemeiner Kartenstil, wird von .form-section und .result-card genutzt */
+.card {
     background-color: var(--content-background);
     border-radius: var(--border-radius-large);
     box-shadow: var(--shadow-soft);
     text-align: left;
     transition: transform var(--transition-medium), box-shadow var(--transition-medium);
-    overflow: hidden; /* Für abgerundete Ecken bei Bildern */
+    overflow: hidden;
 }
 
 .card:hover {
@@ -513,20 +681,18 @@ h3 {
     box-shadow: var(--shadow-medium);
 }
 
-.result-card { /* Spezifisch für Suchergebnisse, erbt von .card */
-    padding: 0; /* Padding wird intern geregelt */
+.result-card {
+    padding: 0;
     animation: fadeIn 0.5s var(--transition-medium) forwards;
-    opacity: 0; /* Initial für Animation */
+    opacity: 0;
 }
 
-/* In Ihrer style.css Datei, finden Sie diese Regel: */
 .result-card .card-image {
     width: 100%;
-    height: 200px; /* Feste Höhe für Bilder */
-    /* object-fit: cover; ALT */
-    object-fit: contain; /* NEU: Stellt sicher, dass das gesamte Bild sichtbar ist und das Seitenverhältnis beibehalten wird. Kann zu Leerraum führen. */
+    height: 200px;
+    object-fit: contain; 
     display: block;
-    background-color: #e9e9eb; /* Optional: Hintergrundfarbe für den Fall, dass 'contain' Leerraum erzeugt */
+    background-color: #e9e9eb;
 } 
 
 .result-card .card-content {
@@ -538,6 +704,8 @@ h3 {
     font-weight: 600;
     margin-bottom: 8px;
     color: var(--secondary-color);
+    border-bottom: none; /* Überschreibt ggf. allgemeines h2 */
+    padding-bottom: 0;
 }
 .card-image-placeholder {
     width: 100%;
@@ -548,7 +716,7 @@ h3 {
     background-color: var(--neutral-bg);
     color: var(--secondary-color);
     font-size: 0.9rem;
-    border-bottom: 1px solid var(--border-color-light); /* Falls Bilder oben sind und Inhalt unten */
+    border-bottom: 1px solid var(--border-color-light);
 }
 
 .result-card p {
@@ -586,36 +754,32 @@ h3 {
 /* Kategoriemenü */
 .category-menu {
     position: fixed;
-    top: 60px; /* Höhe der Topbar */
+    top: 60px;
     left: 0;
-    width: 280px; /* Etwas breiter */
-    height: calc(100vh - 60px); /* Volle Höhe unter der Topbar */
+    width: 280px;
+    height: calc(100vh - 60px);
     background-color: var(--content-background);
     transform: translateX(-100%);
     transition: transform var(--transition-medium);
-    z-index: 1001; /* Über Topbar-Inhalt, aber unter Modals */
+    z-index: 1001; 
     overflow-y: auto;
     border-right: 1px solid var(--border-color-light);
     box-shadow: 4px 0px 15px rgba(0, 0, 0, 0.07);
 }
-
 .category-menu.show {
     transform: translateX(0);
 }
-
 .category-menu ul {
     list-style: none;
 }
-
 .category-menu > ul > li {
     border-bottom: 1px solid var(--border-color-light);
 }
 .category-menu > ul > li:last-child {
     border-bottom: none;
 }
-
 .category-title {
-    display: flex; /* Für Icon-Ausrichtung */
+    display: flex;
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
@@ -624,58 +788,50 @@ h3 {
     transition: background-color var(--transition-fast), color var(--transition-fast);
     color: var(--secondary-color);
 }
-
 .category-title:hover {
     background-color: var(--neutral-bg);
     color: var(--primary-color);
 }
-
-.category-title i.fas { /* Pfeil-Icon */
+.category-title i.fas {
     font-size: 0.8em;
     transition: transform var(--transition-medium);
 }
-.category-title.open i.fas { /* Klasse .open wird per JS gesetzt, wenn Submenü offen ist */
+.category-title.open i.fas {
     transform: rotate(180deg);
 }
-
 .submenu {
     list-style: none;
-    background-color: var(--background-color); /* Leichter Kontrast zum Menü-Hintergrund */
-    /* display: none; wird von JS umgeschaltet. Für CSS Animationen: */
+    background-color: var(--background-color);
     max-height: 0;
     opacity: 0;
     overflow: hidden;
     visibility: hidden;
     transition: max-height var(--transition-medium) ease-in-out, 
                 opacity var(--transition-medium) ease-in-out,
-                padding var(--transition-medium) ease-in-out, /* Animiert Padding für sanfteres Erscheinen */
-                visibility 0s linear var(--transition-medium); /* Verzögert visibility */
-    padding-left: 20px; /* Standard Einrückung, wird beim Schließen auf 0 gesetzt (oder beibehalten) */
+                padding var(--transition-medium) ease-in-out,
+                visibility 0s linear var(--transition-medium);
+    padding-left: 20px; 
 }
-
-.submenu.open { /* JS muss diese Klasse togglen statt style.display */
-    max-height: 1000px; /* Ausreichend Platz für Inhalt */
+.submenu.open {
+    max-height: 1000px; 
     opacity: 1;
     visibility: visible;
-    padding-top: 5px; /* Padding, wenn offen */
+    padding-top: 5px;
     padding-bottom: 10px;
     transition: max-height var(--transition-medium) ease-in-out, 
                 opacity var(--transition-medium) ease-in-out,
                 padding var(--transition-medium) ease-in-out,
                 visibility 0s linear 0s;
 }
-
-
 .submenu li {
-    padding: 10px 20px 10px 15px; /* padding-left kleiner, da submenu schon eingerückt */
+    padding: 10px 20px 10px 15px;
     cursor: pointer;
     font-size: 0.9rem;
     color: var(--secondary-color);
     border-radius: var(--border-radius-small);
-    margin: 2px 5px 2px 0; /* Kleiner Margin */
+    margin: 2px 5px 2px 0;
     transition: background-color var(--transition-fast), color var(--transition-fast);
 }
-
 .submenu li:hover {
     background-color: var(--neutral-bg);
     color: var(--primary-color);
@@ -685,31 +841,49 @@ h3 {
 /* Responsive Anpassungen */
 @media (max-width: 768px) {
     body {
-        padding-top: 60px; /* Höhe der Topbar anpassen, falls sie schmaler wird */
+        padding-top: 60px;
     }
     .wrapper {
         padding: 15px;
     }
     h1 {
-        font-size: 2rem; /* 32px */
+        font-size: 2rem;
+    }
+    h2 { 
+        font-size: 1.5rem;
     }
     .input-group {
-        flex-direction: column; /* Eingabefelder untereinander */
+        flex-direction: column;
         gap: 10px;
     }
     .input-group input[type="text"],
     .input-group input[type="number"],
     .input-group input[type="email"],
     .select-wrapper select,
-    .select-wrapper {
-        width: 100%; /* Volle Breite in der Spalte */
+    .select-wrapper,
+    .save-search-actions input[type="text"], 
+    .save-search-actions .button-save-search { 
+        width: 100%;
+    }
+    .save-search-actions { 
+        flex-direction: column;
     }
 
     .nav-links {
-        display: none; /* Navigationslinks in der Topbar ausblenden, ggf. ins Kategoriemenü verschieben */
+        display: none;
     }
     .nav-logo {
-        margin-left: 10px; /* Anpassen, wenn Nav-Links weg sind */
+        margin-left: 10px;
+    }
+    .user-info { 
+        gap: 10px;
+    }
+    #usernameDisplay {
+        font-size: 0.8rem; 
+        max-width: 100px; 
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     .form-actions {
         flex-direction: column;
@@ -718,12 +892,20 @@ h3 {
         width: 100%;
     }
     .category-menu {
-        width: 250px; /* Etwas schmaler auf Mobilgeräten */
-        top: 50px; /* Falls Topbar Höhe ändert */
-        height: calc(100vh - 50px);
+        width: 250px;
     }
     #results {
         gap: 15px;
+    }
+    #savedSearchesList li {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    #savedSearchesList .search-actions {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-end;
     }
 }
 
@@ -731,13 +913,12 @@ h3 {
     .topbar {
         padding: 0 10px;
     }
-     .nav-logo {
+    .nav-logo {
         height: 30px;
     }
     .menu-button {
         font-size: 1.3rem;
     }
-    
 }
 /* Login Overlay */
 .login-overlay {
@@ -746,8 +927,8 @@ h3 {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(10, 10, 10, 0.9);
-    display: none;
+    background: rgba(10, 10, 10, 0.9); /* Etwas dunkler für besseren Kontrast */
+    display: none; /* Wird per JS zu flex geändert */
     justify-content: center;
     align-items: center;
     z-index: 9999;
@@ -756,49 +937,69 @@ h3 {
 }
 
 .login-box {
-    background: #1d1d1f;
-    padding: 40px;
-    border-radius: 12px;
-    box-shadow: 0 0 20px rgba(255,255,255,0.1);
+    background: #1d1d1f; /* Dunkler Hintergrund für die Box */
+    padding: 30px 40px; /* Etwas mehr horizontales Padding */
+    border-radius: var(--border-radius-large); /* Größerer Radius */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3); /* Stärkerer Schatten */
     text-align: center;
-    max-width: 300px;
+    max-width: 320px; /* Etwas breiter */
     width: 90%;
 }
-
-.login-box input {
-    width: 100%;
-    padding: 12px;
-    margin-top: 15px;
-    border-radius: 8px;
-    border: none;
-    font-size: 1rem;
+.login-box h2 {
+    color: var(--light-text-color);
+    margin-bottom: 25px; /* Mehr Abstand */
+    font-size: 1.5rem;
+    border-bottom: none; /* Keine Border für h2 in Login-Box */
+    padding-bottom: 0;
 }
 
+.login-box input[type="password"] { /* Spezifischer für das Passwortfeld */
+    width: 100%;
+    padding: 14px; /* Etwas mehr Padding */
+    margin-top: 10px; /* Reduzierter oberer Margin */
+    margin-bottom: 20px; /* Abstand zum Button */
+    border-radius: var(--border-radius-medium);
+    border: 1px solid #444; /* Dunklere Border */
+    font-size: 1rem;
+    background-color: #333; /* Dunklerer Input-Hintergrund */
+    color: var(--light-text-color); /* Heller Text */
+    outline: none;
+}
+.login-box input[type="password"]::placeholder {
+    color: #888;
+}
+.login-box input[type="password"]:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.3);
+}
+
+
 .login-box button {
-    margin-top: 15px;
-    padding: 12px 20px;
+    width: 100%; /* Button nimmt volle Breite ein */
+    padding: 14px 20px;
     border: none;
     background-color: var(--primary-color);
     color: white;
     font-size: 1rem;
-    border-radius: 8px;
+    font-weight: 500; /* Etwas fetter */
+    border-radius: var(--border-radius-medium);
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    transition: background-color var(--transition-fast);
 }
 .login-box button:hover {
     background-color: var(--primary-color-dark);
 }
 
-.error-message {
+.error-message { /* Gilt auch für Login-Fehler */
     color: var(--error-color);
     font-size: 0.9rem;
-    margin-top: 10px;
+    margin-top: 15px; /* Mehr Abstand */
 }
 
 /* Body Lock */
-body.locked > *:not(#loginOverlay) {
+body.locked > #appContainer { /* Nur den App-Container bluren, nicht das Overlay selbst */
     pointer-events: none;
     user-select: none;
-    filter: blur(4px);
+    filter: blur(5px); /* Etwas stärkerer Blur */
+    transition: filter 0.3s ease-out;
 }
-
