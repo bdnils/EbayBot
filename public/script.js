@@ -11,7 +11,17 @@ window.addEventListener('DOMContentLoaded', () => {
         "bundle", "monitor", "mainboard", "computer", "tower", "suche", "tausche",
         "tauschen", "miete", "mieten", "verleihen", "defekt", "kaputt"
     ];
-    let excludeWords = new Set(defaultExcludeWords);
+const userKey = sessionStorage.getItem("authenticated");
+let excludeWords = new Set(defaultExcludeWords);
+
+try {
+    const saved = localStorage.getItem(`filters_${userKey}`);
+    if (saved) {
+        excludeWords = new Set(JSON.parse(saved));
+    }
+} catch (e) {
+    console.warn("Fehler beim Laden gespeicherter Filter:", e);
+}
 
     function renderExcludeWords() {
         const container = document.getElementById("exclude-word-list");
@@ -60,7 +70,11 @@ window.addEventListener('DOMContentLoaded', () => {
         if (word && !excludeWords.has(word)) {
             excludeWords.add(word);
             renderExcludeWords();
-            input.value = "";
+try {
+    localStorage.setItem(`filters_${userKey}`, JSON.stringify([...excludeWords]));
+} catch (e) {
+    console.warn("Fehler beim Speichern der Filter:", e);
+}
         }
     }
 
@@ -334,3 +348,41 @@ window.clearSelectedCategory = function() { // Global machen
     // Optional: Suche aktualisieren
     // fetchOffers();
 }
+window.submitAccessCode = function() {
+    const code = document.getElementById("accessCode")?.value.trim();
+    const errorMsg = document.getElementById("loginError");
+
+    if (!code || code.length !== 8) {
+        if (errorMsg) errorMsg.textContent = "❌ Bitte 8-stelligen Code eingeben.";
+        if (errorMsg) errorMsg.style.display = "block";
+        return;
+    }
+
+    fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            sessionStorage.setItem("authenticated", "true");
+document.getElementById("loginOverlay").style.display = "none";
+document.body.classList.remove("locked");
+        } else {
+            if (errorMsg) errorMsg.textContent = data.message || "❌ Zugang verweigert.";
+            if (errorMsg) errorMsg.style.display = "block";
+        }
+    })
+    .catch(err => {
+        if (errorMsg) errorMsg.textContent = "❌ Fehler bei der Anmeldung.";
+        if (errorMsg) errorMsg.style.display = "block";
+    });
+};
+
+window.addEventListener("DOMContentLoaded", () => {
+    if (sessionStorage.getItem("authenticated") !== "true") {
+        document.getElementById("loginOverlay").style.display = "flex";
+        document.body.classList.add("locked");
+    }
+});

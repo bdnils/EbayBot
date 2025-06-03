@@ -1,5 +1,6 @@
 const express = require('express');
 const { chromium } = require('playwright');
+const validCodes = require('./users');
 const app = express();
 const PORT = 3000;
 
@@ -303,6 +304,21 @@ app.post('/cancel', (req, res) => {
         res.json({ message: 'Suche wird abgebrochen.' });
     } else {
         res.status(404).json({ message: 'Keine aktive Suche zum Abbrechen vorhanden.' });
+    }
+});
+app.use(express.json()); // Falls noch nicht vorhanden
+
+app.post('/login', (req, res) => {
+    const { code } = req.body;
+
+    if (!code || typeof code !== 'string' || code.length !== 8) {
+        return res.status(400).json({ success: false, message: "Ungültiger Code." });
+    }
+
+    if (validCodes.includes(code)) {
+        return res.json({ success: true });
+    } else {
+        return res.status(401).json({ success: false, message: "Zugang verweigert." });
     }
 });
 
