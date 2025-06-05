@@ -1,3 +1,5 @@
+// script.js - Vollständige und bereinigte Version
+
 // Globale Variablen für die ausgewählte Kategorie
 let selectedCategoryName = null;
 let selectedCategorySlug = null;
@@ -7,74 +9,117 @@ let selectedCategoryId = null;
 let currentUserId = null;
 let currentUsername = null;
 
-let autoSearchIntervalId; // Geändert von autoSearchInterval, um Verwechslung mit der Input-ID zu vermeiden
+let autoSearchIntervalId; // Für die clientseitige Auto-Suche der Hauptseite
+let notificationPollingIntervalId; // Für das Abrufen von Postfach-Nachrichten
 
 // Hilfsfunktion für User-Nachrichten
-function showUserMessage(message, type = 'success') {
+function showUserMessage(message, type = 'success', duration = 4000) {
     const msgContainer = document.getElementById('userMessages');
     if (!msgContainer) return;
     msgContainer.textContent = message;
-    msgContainer.className = `user-messages ${type}`; // z.B. 'success' oder 'error' für Styling
+    msgContainer.className = `user-messages ${type}`;
     msgContainer.style.display = 'block';
     setTimeout(() => {
-        msgContainer.style.display = 'none';
-        msgContainer.textContent = '';
-    }, 4000); // Nachricht nach 4 Sekunden ausblenden
+        if (msgContainer) {
+            msgContainer.style.display = 'none';
+            msgContainer.textContent = '';
+        }
+    }, duration);
 }
 
-
+// --- Initialisierung und Auth ---
 window.addEventListener('DOMContentLoaded', async () => {
-    // Überprüfe den Authentifizierungsstatus beim Laden der Seite
+    await checkAuthStatusAndInitializeApp();
+
+    const autoIntervalInput = document.getElementById("autoInterval");
+    if (autoIntervalInput) {
+        autoIntervalInput.placeholder = "60";
+        autoIntervalInput.disabled = true;
+        autoIntervalInput.style.opacity = "0.5";
+    }
+
+    const dashboardLink = document.getElementById('openDashboardLink');
+    if (dashboardLink) {
+        dashboardLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateToView('dashboardView');
+        });
+    }
+    document.addEventListener('click', handleClickOutside);
+});
+
+async function checkAuthStatusAndInitializeApp() {
     try {
         const response = await fetch('/api/auth-status');
+        if (!response.ok) {
+             console.error(`Auth status check HTTP error: ${response.status}`);
+             showLoginView();
+             return;
+        }
         const data = await response.json();
 
         if (data.success && data.isAuthenticated) {
             currentUserId = data.userId;
             currentUsername = data.username;
-            document.getElementById('usernameDisplay').textContent = `Angemeldet als: ${currentUsername}`;
-            document.getElementById('loginOverlay').style.display = 'none';
-            document.getElementById('appContainer').style.display = 'block'; // App anzeigen
+            sessionStorage.setItem("userId", data.userId);
+            sessionStorage.setItem("username", data.username);
+            sessionStorage.setItem("authenticated", "true");
+
+            const usernameDisplay = document.getElementById('usernameDisplay');
+            if (usernameDisplay) usernameDisplay.textContent = `${currentUsername}`;
+            
+            const loginOverlay = document.getElementById('loginOverlay');
+            if (loginOverlay) loginOverlay.style.display = 'none';
+            
+            const appContainer = document.getElementById('appContainer');
+            if (appContainer) appContainer.style.display = 'block';
+            
             document.body.classList.remove('locked');
-            loadSavedSearches(); // Gespeicherte Suchen laden
-            initializeExcludeWords(); // Ausschlusswörter initialisieren
+            
+            navigateToView('mainSearchView');
+            loadSavedSearches();
+            initializeExcludeWords();
+            fetchNotificationsAndUpdateBadge();
+            
+            if (notificationPollingIntervalId) clearInterval(notificationPollingIntervalId);
+            notificationPollingIntervalId = setInterval(fetchNotificationsAndUpdateBadge, 60000);
         } else {
-            document.getElementById('loginOverlay').style.display = 'flex';
-            document.getElementById('appContainer').style.display = 'none'; // App ausblenden
-            document.body.classList.add('locked');
+            showLoginView();
         }
     } catch (error) {
         console.error("Fehler beim Überprüfen des Auth-Status:", error);
-        document.getElementById('loginOverlay').style.display = 'flex';
-        document.getElementById('appContainer').style.display = 'none';
-        document.body.classList.add('locked');
+        showLoginView();
     }
+}
 
-    // Event Listener für Elemente, die erst nach dem DOM-Laden sicher verfügbar sind
-    // (Die meisten sind durch onclick im HTML, aber dies ist eine saubere Alternative)
-    const autoIntervalInput = document.getElementById("autoInterval");
-    if (autoIntervalInput) {
-        autoIntervalInput.placeholder = "60"; // Standard als Platzhalter
-        autoIntervalInput.disabled = true;
-        autoIntervalInput.style.opacity = "0.5";
-    }
-});
-
+function showLoginView() {
+    const loginOverlay = document.getElementById('loginOverlay');
+    if (loginOverlay) loginOverlay.style.display = 'flex';
+    
+    const appContainer = document.getElementById('appContainer');
+    if (appContainer) appContainer.style.display = 'none';
+    
+    document.body.classList.add('locked');
+    currentUserId = null;
+    currentUsername = null;
+    sessionStorage.clear();
+    if (notificationPollingIntervalId) clearInterval(notificationPollingIntervalId);
+    if (autoSearchIntervalId) clearInterval(autoSearchIntervalId);
+}
 
 // --- Login / Logout ---
 window.submitAccessCode = async function() {
     const codeInput = document.getElementById("accessCode");
     const errorMsg = document.getElementById("loginError");
-    const code = codeInput?.value.trim();
-
-    if (!codeInput || !errorMsg) return;
+    if (!codeInput || !errorMsg) { console.error("Login form elements not found for submitAccessCode"); return; }
+    const code = codeInput.value.trim();
 
     if (!code || code.length !== 8) {
         errorMsg.textContent = "❌ Bitte 8-stelligen Code eingeben.";
         errorMsg.style.display = "block";
         return;
     }
-    errorMsg.style.display = "none"; // Fehler vor neuem Versuch ausblenden
+    errorMsg.style.display = "none";
 
     try {
         const response = await fetch('/login', {
@@ -85,18 +130,7 @@ window.submitAccessCode = async function() {
         const data = await response.json();
 
         if (data.success) {
-            currentUserId = data.userId;
-            currentUsername = data.username;
-            sessionStorage.setItem("authenticated", "true"); // Für schnelle Client-Checks, aber Server ist maßgebend
-            sessionStorage.setItem("userId", data.userId);
-            sessionStorage.setItem("username", data.username);
-
-            document.getElementById('usernameDisplay').textContent = `Angemeldet als: ${currentUsername}`;
-            document.getElementById("loginOverlay").style.display = "none";
-            document.getElementById("appContainer").style.display = "block";
-            document.body.classList.remove("locked");
-            loadSavedSearches(); // Gespeicherte Suchen nach Login laden
-            initializeExcludeWords(); // Ausschlusswörter initialisieren
+            await checkAuthStatusAndInitializeApp();
         } else {
             errorMsg.textContent = data.message || "❌ Zugang verweigert.";
             errorMsg.style.display = "block";
@@ -110,26 +144,70 @@ window.submitAccessCode = async function() {
 
 window.logoutUser = async function() {
     try {
-        await fetch('/logout');
-        currentUserId = null;
-        currentUsername = null;
-        sessionStorage.removeItem("authenticated");
-        sessionStorage.removeItem("userId");
-        sessionStorage.removeItem("username");
-
-        document.getElementById("loginOverlay").style.display = "flex";
-        document.getElementById("appContainer").style.display = "none";
-        document.body.classList.add("locked");
-        document.getElementById('usernameDisplay').textContent = '';
+        await fetch('/logout'); 
+        showLoginView(); 
+        const usernameDisplay = document.getElementById('usernameDisplay');
+        if (usernameDisplay) usernameDisplay.textContent = '';
         const savedSearchesList = document.getElementById('savedSearchesList');
-        if (savedSearchesList) savedSearchesList.innerHTML = ''; // Gespeicherte Suchen leeren
-        document.getElementById('savedSearchesSection').style.display = 'none';
+        if (savedSearchesList) savedSearchesList.innerHTML = '';
+        const savedSearchesSection = document.getElementById('savedSearchesSection');
+        if (savedSearchesSection) savedSearchesSection.style.display = 'none';
     } catch (error) {
         console.error("Fehler beim Logout:", error);
         showUserMessage("Fehler beim Abmelden.", "error");
     }
 };
 
+// --- Profil Dropdown ---
+window.toggleProfileDropdown = function() {
+    const dropdown = document.getElementById('profileDropdownMenu');
+    const profileButton = document.getElementById('userProfileButton');
+    const arrow = profileButton?.querySelector('.profile-arrow');
+    if (!dropdown || !profileButton) return;
+
+    const isShown = dropdown.classList.toggle('show');
+    if (arrow) arrow.classList.toggle('open', isShown);
+};
+
+function handleClickOutside(event) {
+    const profileButton = document.getElementById('userProfileButton');
+    const dropdown = document.getElementById('profileDropdownMenu');
+    const categoryMenuButton = document.querySelector('.menu-button');
+    const categoryMenu = document.getElementById('categoryMenu');
+
+    if (dropdown && profileButton && !profileButton.contains(event.target) && !dropdown.contains(event.target)) {
+        if (dropdown.classList.contains('show')) {
+            dropdown.classList.remove('show');
+            profileButton.querySelector('.profile-arrow')?.classList.remove('open');
+        }
+    }
+    if (categoryMenu && categoryMenuButton && !categoryMenuButton.contains(event.target) && !categoryMenu.contains(event.target)) {
+         if (categoryMenu.classList.contains('show')) {
+            categoryMenu.classList.remove('show');
+            document.body.classList.remove('category-menu-open');
+        }
+    }
+}
+
+// --- Navigation / Ansichten-Management ---
+function navigateToView(viewId) {
+    const views = ['mainSearchView', 'dashboardView', 'inboxView'];
+    views.forEach(id => {
+        const view = document.getElementById(id);
+        if (view) view.style.display = (id === viewId) ? 'block' : 'none';
+    });
+
+    if (viewId === 'dashboardView' && currentUserId) { 
+        loadMonitoredSearches();
+    } else if (viewId === 'inboxView' && currentUserId) {
+        fetchNotificationsAndUpdateBadge(true);
+    }
+
+    document.getElementById('profileDropdownMenu')?.classList.remove('show');
+    document.querySelector('#userProfileButton .profile-arrow')?.classList.remove('open');
+    document.getElementById('categoryMenu')?.classList.remove('show');
+    document.body.classList.remove('category-menu-open');
+}
 
 // --- Ausschlusswörter ---
 const defaultExcludeWords = [
@@ -137,26 +215,21 @@ const defaultExcludeWords = [
     "bundle", "monitor", "mainboard", "computer", "tower", "suche", "tausche",
     "tauschen", "miete", "mieten", "verleihen", "defekt", "kaputt"
 ];
-let userExcludeWords = new Set(); // Wird initialisiert
+let userExcludeWords = new Set();
 
 function initializeExcludeWords() {
-    userExcludeWords = new Set(defaultExcludeWords); // Beginne mit den Standardwörtern
-    // Hier könnte man später benutzerdefinierte, in der DB gespeicherte Wörter laden
-    // Für jetzt verwenden wir localStorage, aber mit userId-Scope
+    userExcludeWords = new Set(defaultExcludeWords);
     const userIdForStorage = sessionStorage.getItem('userId');
     if (userIdForStorage) {
         try {
             const saved = localStorage.getItem(`excludeFilters_${userIdForStorage}`);
             if (saved) {
-                // Füge gespeicherte Wörter hinzu, Standardwörter bleiben aktiv, wenn nicht explizit entfernt
                 const parsedSaved = JSON.parse(saved);
                 if (Array.isArray(parsedSaved)) {
                     parsedSaved.forEach(word => userExcludeWords.add(word));
                 }
             }
-        } catch (e) {
-            console.warn("Fehler beim Laden gespeicherter Ausschlusswörter:", e);
-        }
+        } catch (e) { console.warn("Fehler Laden Ausschlusswörter:", e); }
     }
     renderExcludeWords();
 }
@@ -165,31 +238,19 @@ function renderExcludeWords() {
     const container = document.getElementById("exclude-word-list");
     if (!container) return;
     container.innerHTML = "";
-
-    // Alle Wörter im Set anzeigen (kombiniert Default und Custom)
-    // Wir brauchen eine Möglichkeit zu unterscheiden, welche "aktiv" sind (d.h. für die aktuelle Suche verwendet werden)
-    // Für dieses Beispiel: Alle Wörter im Set sind "aktiv". Klick deaktiviert/entfernt sie.
-    // Um Verwirrung zu vermeiden: Zeige alle Wörter an, die im Set `userExcludeWords` sind.
-    // Die Unterscheidung in "default" und "custom" ist für die Anzeige, welche man *permanent* entfernen kann.
-
     const allWordsToDisplay = Array.from(userExcludeWords).sort();
-
     allWordsToDisplay.forEach(word => {
         const span = document.createElement("span");
         span.textContent = word;
-        span.classList.add("word-tag", "active"); // Alle im Set sind erstmal aktiv
-
+        span.classList.add("word-tag", "active");
         span.addEventListener("click", () => {
-            if (userExcludeWords.has(word)) {
-                userExcludeWords.delete(word); // Entfernt aus dem aktiven Set
-            } // Ein erneuter Klick würde es nicht wieder hinzufügen, das macht addCustomExclude
-            renderExcludeWords(); // Neu rendern
+            userExcludeWords.delete(word);
+            renderExcludeWords();
             saveExcludeWordsToLocalStorage();
         });
         container.appendChild(span);
     });
 }
-
 window.addCustomExclude = function() {
     const input = document.getElementById("customExclude");
     if (!input) return;
@@ -198,36 +259,25 @@ window.addCustomExclude = function() {
         userExcludeWords.add(word);
         renderExcludeWords();
         saveExcludeWordsToLocalStorage();
-        input.value = ""; // Feld leeren
+        input.value = "";
     }
-}
-
+};
 function saveExcludeWordsToLocalStorage() {
     const userIdForStorage = sessionStorage.getItem('userId');
     if (userIdForStorage) {
         try {
             localStorage.setItem(`excludeFilters_${userIdForStorage}`, JSON.stringify([...userExcludeWords]));
-        } catch (e) {
-            console.warn("Fehler beim Speichern der Ausschlusswörter:", e);
-        }
+        } catch (e) { console.warn("Fehler Speichern Ausschlusswörter:", e); }
     }
 }
 
-
-// --- Gespeicherte Suchen ---
+// --- Gespeicherte Suchen (Manuell) ---
 window.saveCurrentSearch = async function() {
-    if (!currentUserId) {
-        showUserMessage("Bitte zuerst einloggen, um Suchen zu speichern.", "error");
-        return;
-    }
+    if (!currentUserId) { showUserMessage("Bitte zuerst einloggen.", "error"); return; }
     const searchNameInput = document.getElementById('searchNameToSave');
     const search_name = searchNameInput?.value.trim();
-    if (!search_name) {
-        showUserMessage("Bitte einen Namen für die Suche eingeben.", "error");
-        searchNameInput?.focus();
-        return;
-    }
-
+    if (!search_name) { showUserMessage("Bitte Namen für Suche eingeben.", "error"); searchNameInput?.focus(); return; }
+    
     const searchParams = {
         search_name,
         query: document.getElementById('query')?.value || "",
@@ -235,30 +285,19 @@ window.saveCurrentSearch = async function() {
         plz: document.getElementById('plz')?.value || "",
         radius: document.getElementById('radius')?.value || "0",
         exclude_words: [...userExcludeWords].join(','),
-        min_price: parseInt(document.getElementById('minPrice')?.value) || null,
-        price_limit: parseInt(document.getElementById('priceLimit')?.value) || null,
+        min_price: document.getElementById('minPrice')?.value ? parseInt(document.getElementById('minPrice').value) : null,
+        price_limit: document.getElementById('priceLimit')?.value ? parseInt(document.getElementById('priceLimit').value) : null,
         category_slug: selectedCategorySlug,
-        category_id: selectedCategoryId
+        category_id: selectedCategoryId,
+        category_name: selectedCategoryName 
     };
 
     try {
-        const response = await fetch('/api/saved-searches', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(searchParams)
-        });
+        const response = await fetch('/api/saved-searches', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(searchParams) });
         const data = await response.json();
-        if (data.success) {
-            showUserMessage(`Suche "${search_name}" erfolgreich gespeichert!`, 'success');
-            searchNameInput.value = ''; // Feld leeren
-            loadSavedSearches(); // Liste aktualisieren
-        } else {
-            showUserMessage(data.message || "Fehler beim Speichern der Suche.", "error");
-        }
-    } catch (error) {
-        console.error("Fehler beim Speichern der Suche:", error);
-        showUserMessage("Netzwerkfehler beim Speichern der Suche.", "error");
-    }
+        if(data.success){ showUserMessage(`Suche "${search_name}" gespeichert!`, 'success'); if(searchNameInput) searchNameInput.value=''; loadSavedSearches(); }
+        else { showUserMessage(data.message || "Fehler Speichern.", "error");}
+    } catch (err) { console.error("Fehler saveCurrentSearch:", err); showUserMessage("Netzwerkfehler Speichern.", "error");}
 };
 
 async function loadSavedSearches() {
@@ -266,365 +305,535 @@ async function loadSavedSearches() {
     const listElement = document.getElementById('savedSearchesList');
     const sectionElement = document.getElementById('savedSearchesSection');
     const noSearchesMsg = document.getElementById('noSavedSearches');
-
     if (!listElement || !sectionElement || !noSearchesMsg) return;
 
     try {
         const response = await fetch('/api/saved-searches');
+        if(!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
-        listElement.innerHTML = ''; // Alte Einträge löschen
-
+        listElement.innerHTML = ''; 
         if (data.success && data.searches.length > 0) {
-            sectionElement.style.display = 'block';
-            noSearchesMsg.style.display = 'none';
+            sectionElement.style.display = 'block'; noSearchesMsg.style.display = 'none';
             data.searches.forEach(search => {
                 const li = document.createElement('li');
                 li.innerHTML = `
                     <span class="search-name">${search.search_name}</span>
-                    <small>(Gespeichert: ${new Date(search.created_at).toLocaleDateString()})</small>
+                    <small>(Gespeichert: ${new Date(search.created_at).toLocaleDateString('de-DE')})</small>
                     <div class="search-actions">
-                        <button onclick="applySavedSearch(event, ${search.id})" title="Diese Suche laden"><i class="fas fa-upload"></i> Laden</button>
-                        <button onclick="deleteSavedSearch(${search.id})" title="Diese Suche löschen"><i class="fas fa-trash"></i> Löschen</button>
-                    </div>
-                `;
-                // Speichere die Suchdaten direkt am Button oder li-Element, um sie leicht zugänglich zu machen
-                li.querySelector('button[onclick^="applySavedSearch"]').dataset.searchParams = JSON.stringify(search);
+                        <button class="load-search-btn" title="Diese Suche laden"><i class="fas fa-upload"></i> Laden</button>
+                        <button class="delete-search-btn" title="Diese Suche löschen"><i class="fas fa-trash"></i> Löschen</button>
+                    </div>`;
+                li.querySelector('.load-search-btn').addEventListener('click', (event) => applySavedSearch(event, search));
+                li.querySelector('.delete-search-btn').addEventListener('click', () => deleteSavedSearch(search.id));
                 listElement.appendChild(li);
             });
         } else if (data.success && data.searches.length === 0) {
-            sectionElement.style.display = 'block'; // Sektion anzeigen, aber mit "keine Suchen" Text
-            noSearchesMsg.style.display = 'block';
-        } else {
-            showUserMessage(data.message || "Gespeicherte Suchen konnten nicht geladen werden.", "error");
-            sectionElement.style.display = 'none';
+            sectionElement.style.display = 'block'; noSearchesMsg.style.display = 'block';
+            noSearchesMsg.textContent = 'Noch keine Suchen gespeichert.';
+        } else { 
+            showUserMessage(data.message || "Gespeicherte Suchen konnten nicht geladen werden.", "error"); 
+            if(sectionElement) sectionElement.style.display = 'none';
         }
-    } catch (error) {
-        console.error("Fehler beim Laden gespeicherter Suchen:", error);
-        showUserMessage("Netzwerkfehler beim Laden gespeicherter Suchen.", "error");
-        sectionElement.style.display = 'none';
+    } catch (err) { 
+        console.error("Fehler loadSavedSearches:", err); 
+        showUserMessage("Netzwerkfehler beim Laden der Suchen.", "error"); 
+        if (sectionElement) sectionElement.style.display = 'none';
     }
 }
 
-window.applySavedSearch = function(event, searchId) { // searchId ist hier optional, da Daten am Element hängen
-    const searchDataString = event.currentTarget.dataset.searchParams;
-    if (!searchDataString) {
-        console.error("Keine Suchparameter am Element gefunden für ID:", searchId);
-        showUserMessage("Fehler: Suchparameter nicht gefunden.", "error");
-        return;
-    }
+window.applySavedSearch = function(event, searchData) {
     try {
-        const search = JSON.parse(searchDataString);
+        document.getElementById('query').value = searchData.query || "";
+        const pagesInput = document.getElementById('pages');
+        if(pagesInput) pagesInput.value = searchData.pages || 10;
+        
+        const plzInput = document.getElementById('plz');
+        if(plzInput) plzInput.value = searchData.plz || "";
+        
+        const radiusSelect = document.getElementById('radius');
+        if(radiusSelect) radiusSelect.value = searchData.radius || "0";
+        
+        const minPriceInput = document.getElementById('minPrice');
+        if(minPriceInput) minPriceInput.value = searchData.min_price || "";
+        
+        const priceLimitInput = document.getElementById('priceLimit');
+        if(priceLimitInput) priceLimitInput.value = searchData.price_limit || "";
 
-        document.getElementById('query').value = search.query || "";
-        document.getElementById('pages').value = search.pages || 10;
-        document.getElementById('plz').value = search.plz || "";
-        document.getElementById('radius').value = search.radius || "0";
-        document.getElementById('minPrice').value = search.min_price || "";
-        document.getElementById('priceLimit').value = search.price_limit || "";
-
-        userExcludeWords = new Set(search.exclude_words ? search.exclude_words.split(',') : defaultExcludeWords);
+        userExcludeWords = new Set(searchData.exclude_words ? searchData.exclude_words.split(',') : defaultExcludeWords);
         renderExcludeWords();
 
-        if (search.category_id && search.category_slug && search.category_name) {
-            selectedCategoryId = search.category_id;
-            selectedCategorySlug = search.category_slug;
-            selectedCategoryName = search.category_name; // Annahme: category_name wird mitgespeichert (DB-Anpassung nötig)
-                                                        // Falls nicht: Finde das Element im Menü und simuliere Klick oder setze manuell
-            document.getElementById('selectedCategoryNameText').textContent = selectedCategoryName || search.category_slug;
-            document.getElementById('selectedCategoryContainer').style.display = 'flex';
-        } else {
-            clearSelectedCategory();
+        if (searchData.category_id && searchData.category_slug) {
+            selectedCategoryId = searchData.category_id;
+            selectedCategorySlug = searchData.category_slug;
+            selectedCategoryName = searchData.category_name || searchData.category_slug; 
+            
+            const selectedCatNameText = document.getElementById('selectedCategoryNameText');
+            if(selectedCatNameText) selectedCatNameText.textContent = selectedCategoryName;
+            
+            const selectedCatContainer = document.getElementById('selectedCategoryContainer');
+            if(selectedCatContainer) selectedCatContainer.style.display = 'flex';
+        } else { 
+            clearSelectedCategory(); 
         }
-        showUserMessage(`Suche "${search.search_name}" geladen.`, 'success');
-        // Optional: Suche direkt ausführen
-        // fetchOffers();
-    } catch (e) {
-        console.error("Fehler beim Parsen der Suchdaten:", e);
-        showUserMessage("Fehler beim Laden der Suchdaten.", "error");
-    }
+        showUserMessage(`Suche "${searchData.search_name}" geladen.`, 'success');
+        navigateToView('mainSearchView');
+    } catch (e) { console.error("Fehler applySavedSearch:", e); showUserMessage("Fehler Laden Suchdaten.", "error"); }
 };
 
 window.deleteSavedSearch = async function(searchId) {
-    if (!confirm("Sind Sie sicher, dass Sie diese gespeicherte Suche löschen möchten?")) {
-        return;
-    }
+    if (!confirm("Gespeicherte Suche löschen?")) return;
     try {
         const response = await fetch(`/api/saved-searches/${searchId}`, { method: 'DELETE' });
         const data = await response.json();
-        if (data.success) {
-            showUserMessage("Suche erfolgreich gelöscht.", 'success');
-            loadSavedSearches(); // Liste aktualisieren
-        } else {
-            showUserMessage(data.message || "Fehler beim Löschen der Suche.", "error");
-        }
-    } catch (error) {
-        console.error("Fehler beim Löschen der Suche:", error);
-        showUserMessage("Netzwerkfehler beim Löschen der Suche.", "error");
-    }
+        if (data.success) { showUserMessage("Suche gelöscht.", 'success'); loadSavedSearches(); }
+        else { showUserMessage(data.message || "Fehler Löschen.", "error");}
+    } catch (err) { console.error("Fehler deleteSavedSearch:", err); showUserMessage("Netzwerkfehler Löschen.", "error");}
 };
 
+// --- Dashboard: Überwachte Suchen ---
+window.addMonitoredSearch = async function() {
+    if (!currentUserId) { showUserMessage("Bitte einloggen.", "error"); return; }
+    const searchNameInput = document.getElementById('monitorSearchName');
+    const queryInput = document.getElementById('monitorQuery');
+    const plzInput = document.getElementById('monitorPlz');
+    const radiusSelect = document.getElementById('monitorRadius');
+    
+    const search_name = searchNameInput?.value.trim();
+    const query = queryInput?.value.trim();
 
-// --- Scraping-Logik ---
-window.fetchOffers = async function(auto = false) {
-    if (!currentUserId) { // Zusätzliche Prüfung, obwohl UI dies verhindern sollte
-        showUserMessage("Bitte zuerst einloggen.", "error");
-        document.getElementById('loginOverlay').style.display = 'flex';
+    if (!search_name || !query) {
+        showUserMessage("Name und Suchbegriff für Überwachung sind Pflicht.", "error");
         return;
     }
 
+    const query_params = {
+        query: query,
+        plz: plzInput?.value.trim() || null,
+        radius: radiusSelect?.value || "0",
+        excludeWords: [...userExcludeWords].join(','),
+        pages: 2 
+    };
+
+    try {
+        const response = await fetch('/api/monitored-searches', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ search_name, query_params })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showUserMessage(`Überwachung "${search_name}" hinzugefügt.`, "success");
+            if(searchNameInput) searchNameInput.value = '';
+            if(queryInput) queryInput.value = '';
+            if(plzInput) plzInput.value = '';
+            if(radiusSelect) radiusSelect.value = "0";
+            loadMonitoredSearches();
+        } else {
+            showUserMessage(data.message || "Fehler Hinzufügen Überwachung.", "error");
+        }
+    } catch (err) {
+        console.error("Fehler addMonitoredSearch:", err);
+        showUserMessage("Netzwerkfehler Hinzufügen Überwachung.", "error");
+    }
+};
+
+async function loadMonitoredSearches() {
+    if (!currentUserId) return;
+    const listEl = document.getElementById('monitoredSearchesList');
+    const noMonitorsMsg = document.getElementById('noMonitoredSearches');
+    if (!listEl || !noMonitorsMsg) return;
+
+    try {
+        const response = await fetch('/api/monitored-searches');
+        if(!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        listEl.innerHTML = '';
+        if (data.success && data.searches.length > 0) {
+            noMonitorsMsg.style.display = 'none';
+            data.searches.forEach(search => {
+                const li = document.createElement('li');
+                li.className = `monitored-search-item ${search.is_active ? 'active' : 'inactive'}`;
+                let paramsPreview = 'Parameter nicht verfügbar';
+                if (search.query_params && typeof search.query_params === 'object') {
+                     paramsPreview = `"${search.query_params.query || 'N/A'}"`;
+                     if(search.query_params.plz) paramsPreview += ` | PLZ: ${search.query_params.plz}`;
+                     if(search.query_params.radius && search.query_params.radius !== "0") paramsPreview += ` | Umkreis: ${search.query_params.radius}km`;
+                }
+
+                li.innerHTML = `
+                    <div class="monitor-info">
+                        <span class="search-name">${search.search_name}</span>
+                        <small class="status">Status: ${search.is_active ? 'Aktiv' : 'Pausiert'}</small>
+                        <small class="params-preview">(${paramsPreview})</small>
+                        <small class="last-checked">Zuletzt geprüft: ${search.last_checked_at ? new Date(search.last_checked_at).toLocaleString('de-DE') : 'Noch nie'}</small>
+                        <small class="last-found">Zuletzt gefunden: ${search.last_found_count !== undefined ? search.last_found_count : 'N/A'} Angebote</small>
+                    </div>
+                    <div class="search-actions">
+                        <button class="toggle-active-btn" onclick="toggleMonitoredSearchActive(${search.id})">
+                            ${search.is_active ? '<i class="fas fa-pause"></i> Pausieren' : '<i class="fas fa-play"></i> Aktivieren'}
+                        </button>
+                        <button class="delete-monitor-btn" onclick="deleteMonitoredSearch(${search.id})">
+                            <i class="fas fa-trash"></i> Löschen
+                        </button>
+                    </div>`;
+                listEl.appendChild(li);
+            });
+        } else {
+            noMonitorsMsg.style.display = 'block';
+            noMonitorsMsg.textContent = 'Keine aktiven Überwachungen.';
+             if (!data.success && data.message) showUserMessage(data.message, "error");
+        }
+    } catch (err) {
+        console.error("Fehler loadMonitoredSearches:", err);
+        if(noMonitorsMsg) {
+            noMonitorsMsg.textContent = 'Fehler beim Laden der Überwachungen.';
+            noMonitorsMsg.style.display = 'block';
+        }
+    }
+}
+
+window.toggleMonitoredSearchActive = async function(searchId) {
+    try {
+        const response = await fetch(`/api/monitored-searches/${searchId}/toggle`, { method: 'PUT' });
+        const data = await response.json();
+        if (data.success) {
+            showUserMessage(data.message, "success");
+            loadMonitoredSearches();
+        } else {
+            showUserMessage(data.message || "Fehler beim Umschalten.", "error");
+        }
+    } catch (err) { showUserMessage("Netzwerkfehler.", "error"); }
+};
+
+window.deleteMonitoredSearch = async function(searchId) {
+    if (!confirm("Diese automatische Überwachung wirklich löschen?")) return;
+    try {
+        const response = await fetch(`/api/monitored-searches/${searchId}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (data.success) {
+            showUserMessage("Überwachung gelöscht.", "success");
+            loadMonitoredSearches();
+        } else {
+            showUserMessage(data.message || "Fehler beim Löschen.", "error");
+        }
+    } catch (err) { showUserMessage("Netzwerkfehler.", "error"); }
+};
+
+// --- Postfach / Notifications ---
+window.openInbox = function() {
+    navigateToView('inboxView');
+};
+
+async function fetchNotificationsAndUpdateBadge(markAsOpeningInbox = false) {
+    if (!currentUserId) return;
+    const inboxMessagesDiv = document.getElementById('inboxMessages');
+    const noMessagesMsg = document.getElementById('noInboxMessages');
+    const badge = document.getElementById('inboxNotificationBadge');
+    if (!badge) { console.error("Notification badge not found"); return; }
+
+    try {
+        const response = await fetch('/api/notifications');
+        if(!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+
+        if (data.success) {
+            if (data.unreadCount > 0) {
+                badge.textContent = data.unreadCount > 99 ? '99+' : data.unreadCount;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+
+            if (document.getElementById('inboxView')?.style.display === 'block') {
+                if (!inboxMessagesDiv || !noMessagesMsg) return;
+                inboxMessagesDiv.innerHTML = '';
+                if (data.notifications.length > 0) {
+                    noMessagesMsg.style.display = 'none';
+                    data.notifications.forEach(notif => {
+                        const div = document.createElement('div');
+                        div.className = `notification-item ${notif.is_read ? 'read' : 'unread'}`;
+                        div.innerHTML = `
+                            <a href="${notif.offer_url}" target="_blank" rel="noopener noreferrer" class="notification-link" data-notification-id="${notif.id}">
+                                <strong>${notif.offer_title || 'Neues Angebot'}</strong>
+                                <span class="offer-price">(${notif.offer_price || 'N/A'})</span>
+                            </a>
+                            <div class="notification-meta">
+                                <small>${new Date(notif.created_at).toLocaleString('de-DE')}</small>
+                                ${!notif.is_read ? `<button class="mark-read-btn-single" title="Als gelesen markieren" onclick="markOneNotificationAsRead(${notif.id}, event)"><i class="fas fa-check"></i></button>` : ''}
+                            </div>`;
+                        div.querySelector('.notification-link').addEventListener('click', function() {
+                           markOneNotificationAsRead(this.dataset.notificationId);
+                        });
+                        inboxMessagesDiv.appendChild(div);
+                    });
+                } else {
+                    noMessagesMsg.style.display = 'block';
+                    noMessagesMsg.textContent = 'Keine neuen Nachrichten.';
+                }
+            }
+        } else {
+            if (document.getElementById('inboxView')?.style.display === 'block' && noMessagesMsg) {
+                 noMessagesMsg.textContent = data.message || 'Fehler beim Laden der Nachrichten.';
+                 noMessagesMsg.style.display = 'block';
+            }
+             if(badge) badge.style.display = 'none';
+        }
+    } catch (err) {
+        console.error("Fehler fetchNotificationsAndUpdateBadge:", err);
+        if (document.getElementById('inboxView')?.style.display === 'block' && noMessagesMsg) {
+            noMessagesMsg.textContent = 'Netzwerkfehler beim Laden der Nachrichten.';
+            noMessagesMsg.style.display = 'block';
+        }
+        if(badge) badge.style.display = 'none';
+    }
+}
+
+window.markOneNotificationAsRead = async function(notificationId, event) {
+    if (event) event.stopPropagation();
+    try {
+        const response = await fetch(`/api/notifications/${notificationId}/read`, { method: 'PUT' });
+        if (!response.ok) throw new Error("Fehler beim Serveraufruf");
+        
+        const item = document.querySelector(`.notification-link[data-notification-id="${notificationId}"]`)?.closest('.notification-item');
+        if(item && !item.classList.contains('read')) {
+            item.classList.add('read');
+            item.querySelector('.mark-read-btn-single')?.remove();
+            
+            const badge = document.getElementById('inboxNotificationBadge');
+            if (badge && badge.style.display !== 'none') {
+                let currentCountText = badge.textContent;
+                let currentCount = (currentCountText === '99+') ? 100 : parseInt(currentCountText); // Annahme für 99+
+
+                if (!isNaN(currentCount) && currentCount > 0) {
+                    currentCount--;
+                    badge.textContent = currentCount > 99 ? '99+' : (currentCount > 0 ? currentCount.toString() : '0');
+                    if (currentCount === 0) badge.style.display = 'none';
+                } else {
+                     // Wenn Badge schon '0' oder leer war, oder 99+ und wir nicht sicher sind
+                     fetchNotificationsAndUpdateBadge(); // Sicherste Methode: neu vom Server holen
+                }
+            }
+        }
+    } catch (err) { console.error("Fehler markOneNotificationAsRead:", err); }
+};
+
+window.markAllNotificationsAsRead = async function() {
+    try {
+        const response = await fetch('/api/notifications/read-all', {method: 'PUT'});
+        const data = await response.json();
+        if (data.success) {
+            showUserMessage("Alle Nachrichten als gelesen markiert.", "success");
+            fetchNotificationsAndUpdateBadge(true);
+        } else { showUserMessage(data.message || "Fehler.", "error"); }
+    } catch (err) { showUserMessage("Netzwerkfehler.", "error"); }
+};
+
+// --- Haupt-Scraping-Funktion (fetchOffers) ---
+window.fetchOffers = async function(auto = false) {
     const query = document.getElementById('query')?.value || "";
     const plz = document.getElementById('plz')?.value || "";
     const radius = document.getElementById('radius')?.value || "0";
     const minPrice = document.getElementById('minPrice')?.value || "";
     const priceLimit = document.getElementById('priceLimit')?.value || "";
-    const pages = document.getElementById('pages')?.value || 10; // Default 10
-    // const email = document.getElementById('email')?.value || ""; // Email noch nicht serverseitig implementiert
+    const pages = document.getElementById('pages')?.value || 10;
     const excludeWordsParam = [...userExcludeWords].join(',');
-
-    // Parameter für das Speichern von Ergebnissen
     const saveResultsCheckbox = document.getElementById('saveResultsCheckbox');
     const shouldSaveResults = saveResultsCheckbox ? saveResultsCheckbox.checked : false;
     const scrapeSessionNameInput = document.getElementById('scrapeSessionName');
     const scrapeSessName = scrapeSessionNameInput ? scrapeSessionNameInput.value.trim() : "";
 
     showLoader();
-    if (!auto) disableAutoSearchControls(); // Bei manueller Suche Controls für Auto-Suche (de)aktivieren
+    if (!auto) disableAutoSearchControls();
 
     let fetchUrl = `/scrape?query=${encodeURIComponent(query)}&plz=${plz}&radius=${radius}&minPrice=${minPrice}&priceLimit=${priceLimit}&pages=${pages}&auto=${auto}&excludeWords=${encodeURIComponent(excludeWordsParam)}`;
-
-    if (selectedCategorySlug && selectedCategoryId) {
-        fetchUrl += `&categorySlug=${encodeURIComponent(selectedCategorySlug)}`;
-        fetchUrl += `&categoryId=${encodeURIComponent(selectedCategoryId)}`;
+    if (selectedCategorySlug && selectedCategoryId) { 
+        fetchUrl += `&categorySlug=${encodeURIComponent(selectedCategorySlug)}&categoryId=${encodeURIComponent(selectedCategoryId)}`; 
     }
-    if (shouldSaveResults) {
-        fetchUrl += `&saveResults=true`;
-        if (scrapeSessName) {
-            fetchUrl += `&sessionName=${encodeURIComponent(scrapeSessName)}`;
-        }
+    if (shouldSaveResults) { 
+        fetchUrl += `&saveResults=true`; 
+        if (scrapeSessName) { fetchUrl += `&sessionName=${encodeURIComponent(scrapeSessName)}`; }
     }
-
 
     try {
         const response = await fetch(fetchUrl);
         if (!response.ok) {
-            // Versuche, JSON-Fehler vom Server zu parsen
-            if (response.status === 401) { // Spezifischer Fall für nicht authentifiziert
-                showUserMessage("Sitzung abgelaufen oder nicht angemeldet. Bitte neu einloggen.", "error");
-                logoutUser(); // Führe Logout-Routine aus, um UI zurückzusetzen
-                hideLoader();
-                enableAutoSearchControls();
-                return;
+            if (response.status === 401) { 
+                showUserMessage("Sitzung abgelaufen oder nicht angemeldet. Bitte neu einloggen.", "error"); 
+                logoutUser(); 
+                hideLoader(); 
+                enableAutoSearchControls(); 
+                return; 
             }
             const errorData = await response.json().catch(() => ({ message: `HTTP-Fehler! Status: ${response.status}` }));
             throw new Error(errorData.message || `HTTP-Fehler! Status: ${response.status}`);
         }
         const data = await response.json();
         const container = document.getElementById("results");
-        if (!container) return;
-        container.innerHTML = "";
-        hideLoader();
+        if (!container) { hideLoader(); return; }
+        container.innerHTML = ""; 
+        hideLoader(); 
         if (!auto) enableAutoSearchControls();
 
-
-        if (data.message && !Array.isArray(data)) { // Fehlerobjekt vom Server
-            container.innerHTML = `<div class="result-card card-message"><div class="card-content"><p>${data.message}</p></div></div>`;
-            return;
+        if (data.message && !Array.isArray(data)) { 
+            container.innerHTML = `<div class="result-card card-message"><div class="card-content"><p>${data.message}</p></div></div>`; 
+            return; 
         }
-        if (!Array.isArray(data) || data.length === 0) {
-            container.innerHTML = `<div class="result-card card-message"><div class="card-content"><p>Keine Angebote für Ihre Suche gefunden.</p></div></div>`;
-            return;
+        if (!Array.isArray(data) || data.length === 0) { 
+            container.innerHTML = `<div class="result-card card-message"><div class="card-content"><p>Keine Angebote für Ihre Suche gefunden.</p></div></div>`; 
+            return; 
         }
-
-        // Die serverseitige Filterung durch `excludeWords` sollte ausreichen.
-        // Clientseitige Filterung kann entfernt oder als zusätzliche Schicht beibehalten werden.
-        // Für dieses Beispiel lassen wir sie weg, um Redundanz zu vermeiden, da der Server es bereits tut.
 
         data.forEach(offer => {
-            const div = document.createElement("div");
+            const div = document.createElement("div"); 
             div.className = "result-card card";
-            const formattedPrice = offer.price > 0
-                ? `€${parseFloat(offer.price).toFixed(2)} (${offer.priceType || 'Festpreis'})`
-                : (offer.priceType === "VB" ? "Preis VB" : "Kein Preis");
-
+            const formattedPrice = offer.price > 0 ? `€${parseFloat(offer.price).toFixed(2)} (${offer.priceType||'Festpreis'})` : (offer.priceType==="VB"?"Preis VB":"Kein Preis");
             div.innerHTML = `
-                ${offer.image ? `<img src="${offer.image}" alt="${offer.title || 'Angebot'}" class="card-image">` : '<div class="card-image-placeholder">Kein Bild</div>'}
+                ${offer.image?`<img src="${offer.image}" alt="${offer.title||'Angebot'}" class="card-image">`:'<div class="card-image-placeholder">Kein Bild</div>'}
                 <div class="card-content">
-                    <h2>${offer.title || 'Unbekannter Titel'}</h2>
+                    <h2>${offer.title||'Unbekannter Titel'}</h2>
                     <p><strong>Preis:</strong> ${formattedPrice}</p>
-                    <p><strong>Standort:</strong> ${offer.location || 'Unbekannt'}</p>
-                    <p><strong>Score:</strong> ${offer.score !== undefined ? offer.score : 'N/A'}</p>
-                    <a href="${offer.url || '#'}" target="_blank" rel="noopener noreferrer" class="card-link">Zum Angebot <i class="fas fa-external-link-alt"></i></a>
+                    <p><strong>Standort:</strong> ${offer.location||'Unbekannt'}</p>
+                    <p><strong>Score:</strong> ${offer.score!==undefined?offer.score:'N/A'}</p>
+                    <a href="${offer.url||'#'}" target="_blank" rel="noopener noreferrer" class="card-link">Zum Angebot <i class="fas fa-external-link-alt"></i></a>
                 </div>`;
             container.appendChild(div);
         });
-        if (shouldSaveResults) {
-             showUserMessage("Suchergebnisse wurden zur Speicherung an den Server gesendet.", "success");
-             if(scrapeSessionNameInput) scrapeSessionNameInput.value = ""; // Optional Feld leeren
-             if(saveResultsCheckbox) saveResultsCheckbox.checked = false; // Checkbox zurücksetzen
-        }
 
+        if (shouldSaveResults) { 
+            showUserMessage("Ergebnisse zur Speicherung an den Server gesendet.", "success"); 
+            if(scrapeSessionNameInput) scrapeSessionNameInput.value = ""; 
+            if(saveResultsCheckbox) saveResultsCheckbox.checked = false;
+        }
 
         const autoCheckbox = document.getElementById("autoSearchToggle");
-        if (autoCheckbox && autoCheckbox.checked && !auto) { // Nur neu starten, wenn es eine manuelle Suche mit aktivierter Auto-Option war
-            let seconds = parseInt(document.getElementById("autoInterval")?.value || "60");
+        if (autoCheckbox && autoCheckbox.checked && !auto) {
+            let seconds = parseInt(document.getElementById("autoInterval")?.value || "60"); 
             if (isNaN(seconds) || seconds < 5) seconds = 60;
-
             clearInterval(autoSearchIntervalId);
-            autoSearchIntervalId = setInterval(() => {
-                console.log("Automatische Suche wird ausgeführt...");
-                fetchOffers(true); // auto=true übergeben
+            autoSearchIntervalId = setInterval(() => { 
+                console.log("Client Auto-Suche wird ausgeführt..."); 
+                fetchOffers(true); 
             }, seconds * 1000);
-            console.log(`🚀 Client-Auto-Suche aktiviert (alle ${seconds} Sekunden)`);
-        } else if (!autoCheckbox || !autoCheckbox.checked) {
-            clearInterval(autoSearchIntervalId);
+            console.log(`🚀 Client Auto-Suche alle ${seconds} Sekunden aktiviert.`);
+        } else if (!autoCheckbox || !autoCheckbox.checked) { 
+            clearInterval(autoSearchIntervalId); 
         }
-
-    } catch (err) {
-        console.error("❌ Fehler bei der Suche:", err);
-        hideLoader();
-        if (!auto) enableAutoSearchControls();
-        const container = document.getElementById("results");
-        if (container) container.innerHTML = `<p class="error-message">Fehler: ${err.message}. Bitte versuchen Sie es später erneut.</p>`;
+    } catch (err) { 
+        console.error("❌ Fehler bei der Hauptsuche:", err); 
+        hideLoader(); 
+        if (!auto) enableAutoSearchControls(); 
+        const container = document.getElementById("results"); 
+        if(container) container.innerHTML = `<p class="error-message">Fehler: ${err.message}. Versuchen Sie es später erneut.</p>`;
     }
 };
-
 
 window.cancelSearch = async function() {
-    // Wichtig: Der Server bricht nur die Playwright-Suche ab.
-    // Der Client muss ggf. eigene Intervalle etc. stoppen.
-    clearInterval(autoSearchIntervalId); // Client-seitige Auto-Suche stoppen
-    document.getElementById('autoSearchToggle').checked = false; // Checkbox zurücksetzen
-    enableAutoSearchControls(); // Controls reaktivieren
-
+    clearInterval(autoSearchIntervalId);
+    const autoToggle = document.getElementById('autoSearchToggle');
+    if(autoToggle) autoToggle.checked = false;
+    enableAutoSearchControls(); 
     showLoader();
     try {
-        const response = await fetch('/cancel', { method: 'POST' });
+        const response = await fetch('/cancel', { method: 'POST' }); 
         const data = await response.json();
-        console.log(data.message);
-        hideLoader();
-        showUserMessage("Suche wurde serverseitig abgebrochen.", "success");
-    } catch (err) {
-        console.error("Fehler beim Abbrechen:", err);
-        hideLoader();
-        showUserMessage("Keine aktive Suche zum Abbrechen gefunden oder Fehler.", "error");
+        console.log(data.message); 
+        hideLoader(); 
+        showUserMessage(data.message || "Abbruchanfrage gesendet.", "success");
+    } catch (err) { 
+        console.error("Fehler Abbrechen:", err); 
+        hideLoader(); 
+        showUserMessage("Fehler beim Abbrechen der Suche.", "error");
     }
 };
 
-
-// --- UI Hilfsfunktionen ---
-function showLoader() {
+// --- UI Hilfsfunktionen und Menü-Funktionen ---
+function showLoader() { 
     const loader = document.getElementById('loader');
-    if (loader) loader.style.display = 'flex';
+    if(loader) loader.style.display = 'flex'; 
 }
-function hideLoader() {
+function hideLoader() { 
     const loader = document.getElementById('loader');
-    if (loader) loader.style.display = 'none';
+    if(loader) loader.style.display = 'none'; 
 }
-
-function disableAutoSearchControls() {
-    const checkbox = document.getElementById("autoSearchToggle");
-    const input = document.getElementById("autoInterval");
-    if (checkbox) checkbox.disabled = true;
-    if (input) {
-        input.disabled = true;
-        input.style.opacity = "0.5";
-    }
+function disableAutoSearchControls() { 
+    const cb=document.getElementById("autoSearchToggle"); 
+    const inp=document.getElementById("autoInterval"); 
+    if(cb)cb.disabled=true; 
+    if(inp){inp.disabled=true; inp.style.opacity="0.5";} 
 }
-function enableAutoSearchControls() {
-    const checkbox = document.getElementById("autoSearchToggle");
-    const input = document.getElementById("autoInterval");
-    if (checkbox) checkbox.disabled = false;
-    if (input) {
-        input.disabled = !(checkbox && checkbox.checked); // Nur aktivieren, wenn Checkbox an ist
-        input.style.opacity = (checkbox && checkbox.checked) ? "1" : "0.5";
-    }
+function enableAutoSearchControls() { 
+    const cb=document.getElementById("autoSearchToggle"); 
+    const inp=document.getElementById("autoInterval"); 
+    if(cb)cb.disabled=false; 
+    if(inp){inp.disabled=!(cb&&cb.checked); inp.style.opacity=(cb&&cb.checked)?"1":"0.5";} 
 }
-
-window.quickSearch = function(keyword) {
-    const queryInput = document.getElementById('query');
-    if (queryInput) queryInput.value = keyword;
-    fetchOffers(); // Ruft fetchOffers ohne 'auto=true' auf
+window.quickSearch = function(keyword) { 
+    const qI=document.getElementById('query'); 
+    if(qI)qI.value=keyword; 
+    navigateToView('mainSearchView'); 
+    fetchOffers(); 
 };
-
-window.toggleAutoSearch = function(checkbox) {
-    const intervalInput = document.getElementById('autoInterval');
-    if (!intervalInput) return;
-    if (checkbox.checked) {
-        intervalInput.disabled = false;
-        intervalInput.style.opacity = "1";
-        // Startet die Auto-Suche nicht sofort, erst nach einer manuellen Suche mit aktivierter Checkbox
+window.toggleAutoSearch = function(checkbox) { 
+    const iI=document.getElementById('autoInterval'); 
+    if(!iI)return; 
+    if(checkbox.checked){
+        iI.disabled=false; 
+        iI.style.opacity="1";
     } else {
-        intervalInput.disabled = true;
-        intervalInput.style.opacity = "0.5";
-        clearInterval(autoSearchIntervalId);
-        console.log("⛔ Client-Auto-Suche gestoppt.");
+        iI.disabled=true; 
+        iI.style.opacity="0.5"; 
+        clearInterval(autoSearchIntervalId); 
+        console.log("⛔ Client Auto-Suche gestoppt.");
     }
 };
-
-window.toggleFilters = function() {
-    const filters = document.getElementById('advanced-filters');
-    const button = document.querySelector('.toggle-filters-button');
-    if (!filters || !button) return;
-    filters.classList.toggle('hidden');
-    button.classList.toggle('open');
+window.toggleFilters = function() { 
+    const f=document.getElementById('advanced-filters'); 
+    const b=document.querySelector('.toggle-filters-button'); 
+    if(!f||!b)return; 
+    f.classList.toggle('hidden'); 
+    b.classList.toggle('open');
 };
-
-// --- Kategorie-Menü Funktionen ---
-window.toggleCategoryMenu = function() {
-    const menu = document.getElementById('categoryMenu');
-    const body = document.body;
-    if (!menu) return;
-    menu.classList.toggle('show');
-    body.classList.toggle('category-menu-open');
+window.toggleCategoryMenu = function() { 
+    const m=document.getElementById('categoryMenu'); 
+    const b=document.body; 
+    if(!m)return; 
+    m.classList.toggle('show'); 
+    b.classList.toggle('category-menu-open');
 };
-
-window.toggleSubmenu = function(element) {
-    const submenu = element.nextElementSibling;
-    const iconElement = element.querySelector('i.fas.fa-chevron-down');
-    if (!submenu) return;
-
-    const currentlyOpen = submenu.classList.contains('open');
-    // Alle anderen Submenüs im selben Hauptmenü schließen
-    const parentUl = element.closest('aside#categoryMenu > ul'); // Das äußerste UL im Aside
-    if (parentUl) {
-        parentUl.querySelectorAll('.submenu.open').forEach(openSub => {
-            openSub.classList.remove('open');
-            const prevTitle = openSub.previousElementSibling;
-            if (prevTitle && prevTitle.classList.contains('category-title')) {
-                prevTitle.classList.remove('open');
-            }
+window.toggleSubmenu = function(el) { 
+    const sm=el.nextElementSibling; 
+    const ic=el.querySelector('i.fas.fa-chevron-down'); 
+    if(!sm)return; 
+    const cO=sm.classList.contains('open'); 
+    const pU=el.closest('aside#categoryMenu > ul'); 
+    if(pU){
+        pU.querySelectorAll('.submenu.open').forEach(oS=>{
+            oS.classList.remove('open'); 
+            const pT=oS.previousElementSibling; 
+            if(pT&&pT.classList.contains('category-title')) pT.classList.remove('open');
         });
+    } 
+    if(!cO){
+        sm.classList.add('open'); 
+        if(ic) el.classList.add('open');
     }
-    // Aktuelles Submenü öffnen/schließen
-    if (!currentlyOpen) {
-        submenu.classList.add('open');
-        if (iconElement) element.classList.add('open');
-    } // Bereits offene bleiben nach dem Schließen aller anderen nicht wieder offen
 };
-
-window.selectCategory = function(element) {
-    selectedCategoryName = element.dataset.categoryName;
-    selectedCategorySlug = element.dataset.categorySlug;
-    selectedCategoryId = element.dataset.categoryId;
-
-    const nameTextElem = document.getElementById('selectedCategoryNameText');
-    const containerElem = document.getElementById('selectedCategoryContainer');
-
-    if (nameTextElem) nameTextElem.textContent = selectedCategoryName;
-    if (containerElem) containerElem.style.display = 'flex';
-
-    toggleCategoryMenu(); // Menü nach Auswahl schließen
-    // Optional: fetchOffers(); // Suche direkt mit neuer Kategorie starten
+window.selectCategory = function(el) { 
+    selectedCategoryName=el.dataset.categoryName; 
+    selectedCategorySlug=el.dataset.categorySlug; 
+    selectedCategoryId=el.dataset.categoryId; 
+    const nTE=document.getElementById('selectedCategoryNameText'); 
+    const cE=document.getElementById('selectedCategoryContainer'); 
+    if(nTE)nTE.textContent=selectedCategoryName; 
+    if(cE)cE.style.display='flex'; 
+    toggleCategoryMenu();
 };
-
 window.clearSelectedCategory = function() {
-    selectedCategoryName = null;
-    selectedCategorySlug = null;
-    selectedCategoryId = null;
-
-    const containerElem = document.getElementById('selectedCategoryContainer');
-    const nameTextElem = document.getElementById('selectedCategoryNameText');
-
-    if (containerElem) containerElem.style.display = 'none';
-    if (nameTextElem) nameTextElem.textContent = '';
+    selectedCategoryName=null;
+    selectedCategorySlug=null;
+    selectedCategoryId=null; 
+    const cE=document.getElementById('selectedCategoryContainer'); 
+    const nTE=document.getElementById('selectedCategoryNameText'); 
+    if(cE)cE.style.display='none'; 
+    if(nTE)nTE.textContent='';
 };

@@ -1,22 +1,22 @@
+// server.js (Vervollständigt, wo möglich)
 const express = require('express');
 const { chromium } = require('playwright');
-const session = require('express-session'); // Hinzugefügt für Sessions
+const session = require('express-session');
+const cron = require('node-cron'); // Für geplante Aufgaben
+const crypto = require('crypto'); // Für URL-Hashing
 const app = express();
 const PORT = 3000;
-const db = require('./db'); // Datenbankverbindung importieren
-// const validCodes = require('./users'); // Ersetzt durch Datenbanklogik
+const db = require('./db'); // Stelle sicher, dass db.js korrekt konfiguriert ist
 
-app.use(express.json()); // Middleware für JSON-Request-Bodies
-
-// Session-Middleware konfigurieren
+app.use(express.json());
 app.use(session({
-    secret: 'DeinSuperGeheimesSessionGeheimnis123!', // ÄNDERE DIES!
+    secret: 'DeinSuperGeheimesSessionGeheimnis123!', // ÄNDERE DIES IN EINEN LANGEN, ZUFÄLLIGEN STRING!
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: true, // Session auch ohne Login-Daten erstellen (aber noch nicht authentifiziert)
     cookie: {
         secure: false, // Für Entwicklung (HTTP). Für Produktion (HTTPS) auf 'true' setzen!
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 1 Tag
+        httpOnly: true, // Verhindert Zugriff auf Cookie per JavaScript im Browser
+        maxAge: 24 * 60 * 60 * 1000 // Gültigkeit des Cookies (hier 1 Tag)
     }
 }));
 
@@ -28,25 +28,21 @@ function ensureAuthenticated(req, res, next) {
     res.status(401).json({ success: false, message: 'Nicht authentifiziert. Bitte zuerst anmelden.' });
 }
 
-// Statische Dateien (HTML, CSS, Frontend-JS) aus 'public' bereitstellen
 app.use(express.static('public'));
 
 // --- Authentifizierungs-Endpunkte ---
 app.post('/login', async (req, res) => {
     const { code } = req.body;
-
     if (!code || typeof code !== 'string') {
         return res.status(400).json({ success: false, message: "Ungültiger Code-Typ." });
     }
-
     try {
-        // Prüfe, ob der Code einem Benutzer in der DB entspricht (username = code)
         const [users] = await db.execute('SELECT id, username FROM users WHERE username = ?', [code]);
         if (users.length > 0) {
             const user = users[0];
             req.session.isAuthenticated = true;
-            req.session.userCode = user.username; // Behalten für Konsistenz, falls verwendet
-            req.session.userId = user.id;     // Wichtig für weitere DB-Operationen
+            req.session.userCode = user.username;
+            req.session.userId = user.id;
             console.log(`Benutzer mit ID ${user.id} (Code ${user.username}) erfolgreich angemeldet.`);
             res.json({ success: true, message: 'Anmeldung erfolgreich.', userId: user.id, username: user.username });
         } else {
@@ -67,40 +63,37 @@ app.get('/logout', (req, res) => {
             console.error('Fehler beim Abmelden:', err);
             return res.status(500).json({ success: false, message: 'Abmeldung fehlgeschlagen.' });
         }
-        res.clearCookie('connect.sid'); // Name des Session-Cookies (Standardname)
+        res.clearCookie('connect.sid');
         console.log(`Benutzer mit ID ${userId || '(unbekannt)'} (Code ${userCode || '(unbekannt)'}) abgemeldet.`);
         res.json({ success: true, message: 'Erfolgreich abgemeldet.' });
     });
 });
 
-// Endpunkt zur Überprüfung des Login-Status
 app.get('/api/auth-status', (req, res) => {
     if (req.session.isAuthenticated && req.session.userId) {
         res.json({
             success: true,
             isAuthenticated: true,
             userId: req.session.userId,
-            username: req.session.userCode // oder username, je nachdem was das Frontend erwartet
+            username: req.session.userCode
         });
     } else {
         res.json({ success: true, isAuthenticated: false });
     }
 });
 
-
-// --- Endpunkte zum Speichern und Laden von Suchen ---
+// --- Endpunkte zum Speichern und Laden von (manuellen) Suchen ---
 app.post('/api/saved-searches', ensureAuthenticated, async (req, res) => {
     const { userId } = req.session;
     const {
         search_name, query, pages, plz, radius,
-        exclude_words, min_price, price_limit, // price_limit ist maxPrice
+        exclude_words, min_price, price_limit,
         category_slug, category_id
     } = req.body;
 
     if (!search_name) {
         return res.status(400).json({ success: false, message: 'Suchname ist erforderlich.' });
     }
-
     try {
         const [result] = await db.execute(
             `INSERT INTO saved_searches (user_id, search_name, query, pages, plz, radius, exclude_words, min_price, price_limit, category_slug, category_id)
@@ -117,8 +110,11 @@ app.post('/api/saved-searches', ensureAuthenticated, async (req, res) => {
 app.get('/api/saved-searches', ensureAuthenticated, async (req, res) => {
     const { userId } = req.session;
     try {
+        // Annahme: `category_name` wird für die Anzeige im Frontend benötigt und ist Teil der `saved_searches`-Tabelle
+        // Falls nicht, muss dieser SELECT angepasst werden oder der Frontend-Code, der `category_name` erwartet.
         const [searches] = await db.execute(
             'SELECT id, search_name, query, pages, plz, radius, exclude_words, min_price, price_limit, category_slug, category_id, created_at FROM saved_searches WHERE user_id = ? ORDER BY created_at DESC',
+            // Wenn du category_name in der DB hast: 'SELECT id, search_name, ..., category_name, created_at FROM ...'
             [userId]
         );
         res.json({ success: true, searches });
@@ -148,23 +144,153 @@ app.delete('/api/saved-searches/:id', ensureAuthenticated, async (req, res) => {
 });
 
 
-// --- Scraping-Funktionen und Endpunkte ---
-let currentScraping = null; // Bezieht sich auf manuelle Scrapes
+// --- API Endpunkte für überwachte Suchen (Dashboard) ---
+app.post('/api/monitored-searches', ensureAuthenticated, async (req, res) => {
+    const { userId } = req.session;
+    const { search_name, query_params } = req.body;
 
+    if (!search_name || !query_params) {
+        return res.status(400).json({ success: false, message: 'Name und Suchparameter sind erforderlich.' });
+    }
+    try {
+        const queryParamsString = JSON.stringify(query_params); // Frontend schickt Objekt, wir speichern als JSON-String
+        const [result] = await db.execute(
+            'INSERT INTO monitored_searches (user_id, search_name, query_params) VALUES (?, ?, ?)',
+            [userId, search_name, queryParamsString]
+        );
+        res.status(201).json({ success: true, message: 'Überwachte Suche hinzugefügt.', id: result.insertId });
+    } catch (error) {
+        console.error('Fehler beim Hinzufügen der überwachten Suche:', error);
+        res.status(500).json({ success: false, message: 'Fehler beim Hinzufügen.' });
+    }
+});
+
+app.get('/api/monitored-searches', ensureAuthenticated, async (req, res) => {
+    const { userId } = req.session;
+    try {
+        const [searches] = await db.execute(
+            'SELECT id, search_name, query_params, is_active, last_checked_at, last_found_count FROM monitored_searches WHERE user_id = ? ORDER BY created_at DESC',
+            [userId]
+        );
+        const parsedSearches = searches.map(s => {
+            try {
+                return {...s, query_params: JSON.parse(s.query_params)};
+            } catch (e) {
+                console.error(`Fehler beim Parsen von query_params für Monitor ID ${s.id}:`, s.query_params);
+                return {...s, query_params: {}}; // Fallback auf leeres Objekt
+            }
+        });
+        res.json({ success: true, searches: parsedSearches });
+    } catch (error) {
+        console.error('Fehler beim Laden der überwachten Suchen:', error);
+        res.status(500).json({ success: false, message: 'Fehler beim Laden.' });
+    }
+});
+
+app.put('/api/monitored-searches/:id/toggle', ensureAuthenticated, async (req, res) => {
+    const { userId } = req.session;
+    const { id } = req.params;
+    try {
+        const [current] = await db.execute('SELECT is_active FROM monitored_searches WHERE id = ? AND user_id = ?', [id, userId]);
+        if (current.length === 0) {
+            return res.status(404).json({ success: false, message: 'Überwachte Suche nicht gefunden.' });
+        }
+        const newStatus = !current[0].is_active;
+        await db.execute(
+            'UPDATE monitored_searches SET is_active = ? WHERE id = ? AND user_id = ?',
+            [newStatus, id, userId]
+        );
+        res.json({ success: true, message: `Überwachung ${newStatus ? 'aktiviert' : 'deaktiviert'}.`, isActive: newStatus });
+    } catch (error) {
+        console.error('Fehler beim Umschalten der überwachten Suche:', error);
+        res.status(500).json({ success: false, message: 'Fehler beim Umschalten.' });
+    }
+});
+
+app.delete('/api/monitored-searches/:id', ensureAuthenticated, async (req, res) => {
+    const { userId } = req.session;
+    const { id } = req.params;
+    try {
+        const [result] = await db.execute(
+            'DELETE FROM monitored_searches WHERE id = ? AND user_id = ?',
+            [id, userId]
+        );
+        if (result.affectedRows > 0) {
+            // Zugehörige Einträge in seen_monitored_offers werden durch ON DELETE CASCADE in der DB gelöscht
+            // Zugehörige Notifications werden durch ON DELETE SET NULL in der DB aktualisiert (monitored_search_id = NULL)
+            res.json({ success: true, message: 'Überwachte Suche gelöscht.' });
+        } else {
+            res.status(404).json({ success: false, message: 'Nicht gefunden oder keine Berechtigung.' });
+        }
+    } catch (error) {
+        console.error('Fehler beim Löschen der überwachten Suche:', error);
+        res.status(500).json({ success: false, message: 'Fehler beim Löschen.' });
+    }
+});
+
+
+// --- API Endpunkte für Benachrichtigungen (Postfach) ---
+app.get('/api/notifications', ensureAuthenticated, async (req, res) => {
+    const { userId } = req.session;
+    try {
+        const [notifications] = await db.execute(
+            'SELECT id, monitored_search_id, offer_title, offer_url, offer_price, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 100', // Limit erhöht
+            [userId]
+        );
+        const [unreadCountResult] = await db.execute(
+            'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = FALSE',
+            [userId]
+        );
+        res.json({ success: true, notifications, unreadCount: unreadCountResult[0].count });
+    } catch (error) {
+        console.error('Fehler beim Laden der Benachrichtigungen:', error);
+        res.status(500).json({ success: false, message: 'Fehler beim Laden der Benachrichtigungen.' });
+    }
+});
+
+app.put('/api/notifications/:id/read', ensureAuthenticated, async (req, res) => {
+    const { userId } = req.session;
+    const { id } = req.params;
+    try {
+        await db.execute(
+            'UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?',
+            [id, userId]
+        );
+        res.json({ success: true, message: 'Benachrichtigung als gelesen markiert.' });
+    } catch (error) {
+        console.error('Fehler beim Markieren als gelesen:', error);
+        res.status(500).json({ success: false, message: 'Fehler beim Markieren.' });
+    }
+});
+
+app.put('/api/notifications/read-all', ensureAuthenticated, async (req, res) => {
+    const { userId } = req.session;
+    try {
+        await db.execute(
+            'UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE',
+            [userId]
+        );
+        res.json({ success: true, message: 'Alle neuen Benachrichtigungen als gelesen markiert.' });
+    } catch (error) {
+        console.error('Fehler beim Markieren aller als gelesen:', error);
+        res.status(500).json({ success: false, message: 'Fehler beim Markieren.' });
+    }
+});
+
+
+// --- Scraping-Helferfunktionen ---
 const locationMap = {
-    "46485": "1866",
-    "46483": "1867",
-    "46514": "1756",
-    "46487": "1868",
+    "46485": "1866", "46483": "1867", "46514": "1756", "46487": "1868",
+    // Füge hier alle deine PLZ-Mappings hinzu
 };
 
 function extractPrice(text) {
     if (typeof text !== 'string') return null;
-    const match = text.match(/([\d.,]+)\s*€/); // Angepasst für deutsche Zahlenformate
+    const match = text.match(/([\d.,]+)\s*€/);
     if (match && match[1]) {
         let numberString = match[1];
-        numberString = numberString.replace(/\./g, ''); // Tausendertrennzeichen (Punkte) entfernen
-        numberString = numberString.replace(/,/g, '.');  // Dezimalkomma durch Punkt ersetzen
+        numberString = numberString.replace(/\./g, ''); // Tausenderpunkte entfernen
+        numberString = numberString.replace(/,/g, '.');  // Dezimalkomma zu Punkt
         const price = parseFloat(numberString);
         return isNaN(price) ? null : price;
     }
@@ -172,85 +298,81 @@ function extractPrice(text) {
 }
 
 function extractPriceType(text) {
+    if (typeof text !== 'string') return "unbekannt";
     if (text.toLowerCase().includes("vb")) {
         return "VB";
-    } else {
-        return "Festpreis";
     }
+    return "Festpreis";
 }
 
 function isGraphicCardOffer(title) {
+    if (typeof title !== 'string') return false;
     const titleLower = title.toLowerCase();
     const include = ["grafikkarte", "gpu", "geforce", "gtx", "rtx", "rx", "radeon", "intel arc", "a750", "a770", "arc a"];
     return include.some(word => titleLower.includes(word));
 }
 
-app.get('/scrape', ensureAuthenticated, async (req, res) => {
-    if (currentScraping && !(req.query.auto === 'true')) { // auto-Parameter für spätere Erweiterungen
-        return res.status(409).json({ message: 'Eine Suche läuft bereits.' });
-    }
+// Die Haupt-Scraping-Funktion, jetzt modularer für Cronjobs
+async function performScrape(scrapeParams, userIdForNotification = null, monitoredSearchIdForNotification = null) {
+    console.log(`Starte Scrape mit Parametern:`, scrapeParams, `Für UserNotification: ${userIdForNotification}, MonitorID: ${monitoredSearchIdForNotification}`);
 
-    const abortController = new AbortController();
-    if (!(req.query.auto === 'true')) {
-        currentScraping = abortController;
-    }
-    const { userId } = req.session; // Benutzer-ID für das Speichern von Ergebnissen
+    const {
+        query = "grafikkarte", pages = 1, plz, radius,
+        minPrice, priceLimit, excludeWords: rawExcludes = '', // rawExcludes ist ein String
+        categoryId, categorySlug
+    } = scrapeParams;
 
-    const query = req.query.query || "grafikkarte";
     const searchQuery = query.trim().replace(/\s+/g, '-');
-    const pagesToScrape = Math.min(parseInt(req.query.pages) || 10, 50);
-
-    const plz = req.query.plz;
-    const radius = req.query.radius;
+    // Für Cronjob ggf. weniger Seiten, z.B. nur 1-2, um schneller zu sein und "frische" Angebote zu finden
+    const pagesToScrape = userIdForNotification ? Math.min(parseInt(pages) || 1, 2) : Math.min(parseInt(pages) || 10, 50);
+    const excludedWordsArray = typeof rawExcludes === 'string' ? rawExcludes.split(',').map(w => w.trim().toLowerCase()).filter(Boolean) : [];
+    
     let ortId = null;
-
-    if (plz) {
+    if (plz && locationMap[plz]) {
         ortId = locationMap[plz];
-        if (!ortId) {
-            if (!(req.query.auto === 'true')) currentScraping = null;
-            return res.status(400).json({ message: `Keine Ort-ID für die angegebene PLZ ${plz} gefunden.` });
-        }
+    } else if (plz) {
+        console.warn(`(PerformScrape) Unbekannte PLZ ${plz} für Scrape. Ort wird ignoriert.`);
     }
-
-    const rawExcludes = req.query.excludeWords || '';
-    const excludedWords = rawExcludes.split(',').map(w => w.trim().toLowerCase()).filter(Boolean);
-
-    const minPrice = req.query.minPrice ? parseInt(req.query.minPrice) : null;
-    const maxPrice = req.query.priceLimit ? parseInt(req.query.priceLimit) : null;
 
     let preisSegment = '';
-    if (minPrice !== null && maxPrice !== null) {
-        preisSegment = `/preis:${minPrice}:${maxPrice}`;
-    } else if (minPrice !== null) {
-        preisSegment = `/preis:${minPrice}:`;
-    } else if (maxPrice !== null) {
-        preisSegment = `/preis::${maxPrice}`;
-    }
+    if (minPrice != null && priceLimit != null) preisSegment = `/preis:${minPrice}:${priceLimit}`;
+    else if (minPrice != null) preisSegment = `/preis:${minPrice}:`;
+    else if (priceLimit != null) preisSegment = `/preis::${priceLimit}`;
 
-    const categorySlug = req.query.categorySlug;
-    const categoryId = req.query.categoryId;
+    let allScrapedOffers = [];
+    let browser = null; // Wichtig: Initialisiere mit null
 
-    // Parameter für das Speichern von Ergebnissen
-    const saveResults = req.query.saveResults === 'true';
-    const sessionName = req.query.sessionName || `Scrape vom ${new Date().toLocaleString()}`;
-
-
-    let browser;
     try {
-        browser = await chromium.launch({ headless: true });
+        browser = await chromium.launch({ headless: true }); // Du könntest hier Argumente wie '--no-sandbox' für Docker hinzufügen
         const context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/123 Safari/537.36'
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/124.0.0.0 Safari/537.36', // Aktuellerer UserAgent
+            javaScriptEnabled: true, // Standard, aber explizit
+            // Ggf. Proxy-Einstellungen hier, falls nötig
         });
+        // Cookies blockieren, um Tracking zu reduzieren und die Seite sauberer zu halten (optional)
+        // await context.addInitScript(() => {
+        //     const block = ['google-analytics.com', 'googletagmanager.com', 'scorecardresearch.com'];
+        //     const originalFetch = window.fetch;
+        //     window.fetch = (...args) => {
+        //         if (args[0] && block.some(b => args[0].includes(b))) {
+        //             return Promise.reject(new Error('Blocked by custom script'));
+        //         }
+        //         return originalFetch(...args);
+        //     };
+        // });
+        // await context.route('**/*', route => { // Bilder, CSS etc. blockieren um Speed zu erhöhen
+        //     const resourceType = route.request().resourceType();
+        //     if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+        //         route.abort();
+        //     } else {
+        //         route.continue();
+        //     }
+        // });
+
+
         const page = await context.newPage();
-        let allOffers = [];
-        let finalUrl;
 
         for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
-            if (abortController.signal.aborted) {
-                console.log('Suche wurde extern abgebrochen.');
-                break;
-            }
-
             let currentUrlPath = "";
             if (categorySlug && categoryId) {
                 currentUrlPath = `s-${categorySlug}`;
@@ -259,51 +381,28 @@ app.get('/scrape', ensureAuthenticated, async (req, res) => {
                 if (preisSegment) currentUrlPath += preisSegment;
                 currentUrlPath += `/${searchQuery}`;
                 currentUrlPath += `/k0c${categoryId}`;
-                if (ortId) {
-                    currentUrlPath += `l${ortId}`;
-                    if (radius) currentUrlPath += `r${radius}`;
-                }
-                finalUrl = `https://www.kleinanzeigen.de/${currentUrlPath}`;
+                if (ortId) { currentUrlPath += `l${ortId}`; if (radius) currentUrlPath += `r${radius}`; }
             } else {
                 let legacyPath = "";
                 if (plz && ortId) legacyPath += plz;
-                if (pageNum > 1) {
-                    if (legacyPath.length > 0) legacyPath += "/";
-                    legacyPath += `seite:${pageNum}`;
-                }
-                if (preisSegment) {
-                    if (legacyPath.length > 0) legacyPath += preisSegment;
-                    else legacyPath += preisSegment.substring(1);
-                }
+                if (pageNum > 1) { if (legacyPath.length > 0) legacyPath += "/"; legacyPath += `seite:${pageNum}`; }
+                if (preisSegment) { if (legacyPath.length > 0) legacyPath += preisSegment; else legacyPath += preisSegment.substring(1); }
                 if (legacyPath.length > 0 && !legacyPath.endsWith('/')) legacyPath += "/";
-                legacyPath += searchQuery;
-                legacyPath += "/k0";
-                if (ortId) {
-                    legacyPath += `l${ortId}`;
-                    if (radius) legacyPath += `r${radius}`;
-                }
-                finalUrl = `https://www.kleinanzeigen.de/s-${legacyPath}`;
+                legacyPath += searchQuery; legacyPath += "/k0";
+                if (ortId) { legacyPath += `l${ortId}`; if (radius) legacyPath += `r${radius}`; }
+                currentUrlPath = legacyPath; // Das 's-' wird unten hinzugefügt
             }
+            const finalUrl = `https://www.kleinanzeigen.de/s-${currentUrlPath}`; // Sicherstellen, dass 's-' immer da ist
             
-            console.log(`User ${userId} lädt Seite ${pageNum}: ${finalUrl}`);
-
+            console.log(`(PerformScrape) Lade Seite ${pageNum}: ${finalUrl}`);
             try {
-                await page.goto(finalUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-            } catch (err) {
-                if (abortController.signal.aborted) {
-                    console.log('Timeout beim Laden, aber Suche bereits abgebrochen.');
-                    break;
-                } else if (err.name === 'TimeoutError') {
-                    console.warn(`Timeout Seite ${pageNum}: ${finalUrl}. Überspringe...`);
-                    continue;
-                } else {
-                    throw err;
-                }
+                await page.goto(finalUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }); // Timeout erhöht
+            } catch(e) {
+                console.error(`Fehler beim Laden von ${finalUrl} auf Seite ${pageNum}: ${e.message}`);
+                if(pageNum === 1 && e.message.includes('timeout')) throw e; // Bei Timeout auf erster Seite abbrechen
+                continue; // Bei Fehler auf Folgeseiten überspringen
             }
-
-            if (abortController.signal.aborted) break;
-            await page.waitForTimeout(1500 + Math.random() * 1000); // Etwas Wartezeit
-            if (abortController.signal.aborted) break;
+            await page.waitForTimeout(2500 + Math.random() * 2000); // Längere, variablere Wartezeit
 
             const offersOnPage = await page.evaluate(() => {
                 const cards = document.querySelectorAll('article.aditem');
@@ -317,124 +416,205 @@ app.get('/scrape', ensureAuthenticated, async (req, res) => {
                     if (title && itemUrl) {
                         const location = card.querySelector('.aditem-main--top')?.innerText?.trim() ?? "";
                         const middleText = card.querySelector('.aditem-main--middle')?.innerText?.trim() ?? "";
-                        const image = card.querySelector('img')?.src ?? "";
+                        const imageElement = card.querySelector('.imagebox img'); // Genauerer Selektor für Bild
+                        const image = imageElement?.getAttribute('src') ?? imageElement?.dataset.imgsrc ?? ""; // Auch data-imgsrc prüfen
                         list.push({ title, middleText, location, url: itemUrl, image });
                     }
                 });
                 return list;
             });
-
-            if (offersOnPage.length === 0 && pageNum > 1) {
-                console.log(`Keine weiteren Angebote auf Seite ${pageNum}.`);
-                break;
+            if (offersOnPage.length === 0 && pageNum > 1) break;
+            allScrapedOffers.push(...offersOnPage);
+            if (offersOnPage.length < 20 && pageNum > 1 && !userIdForNotification) break; // Bei manuellen Suchen früher abbrechen, wenn wenig Ergebnisse
+            if (userIdForNotification && offersOnPage.length === 0 && pageNum === 1) break; // Für Cron: Wenn erste Seite leer, abbrechen
+        }
+    } catch(error) {
+        console.error(`(PerformScrape) Schwerer Fehler während des Playwright-Vorgangs: ${error.message}`);
+        // Werfe den Fehler weiter, damit er im aufrufenden Kontext (Cronjob oder /scrape Route) behandelt wird
+        throw error;
+    } finally {
+        if (browser) {
+            try {
+                await browser.close();
+            } catch (e) {
+                console.error("(PerformScrape) Fehler beim Schließen des Browsers:", e);
             }
-            allOffers = allOffers.concat(offersOnPage);
-            if (offersOnPage.length < 20 && pageNum > 1) {
-                console.log(`Weniger als 20 Angebote auf Seite ${pageNum}, evtl. Ende.`);
+        }
+    }
+
+    const uniqueOffersMap = new Map();
+    allScrapedOffers.forEach(offer => { if (offer.url && !uniqueOffersMap.has(offer.url)) uniqueOffersMap.set(offer.url, offer); });
+    
+    let processedOffers = Array.from(uniqueOffersMap.values())
+        .filter(offer => !excludedWordsArray.some(keyword => offer.title.toLowerCase().includes(keyword)))
+        .map(offer => {
+            const price = extractPrice(offer.middleText);
+            const priceType = extractPriceType(offer.middleText);
+            return { title: offer.title, price: price ?? 0, priceType: price || price===0 ? priceType : "unbekannt", location: offer.location, url: offer.url, image: offer.image };
+        });
+
+    if (userIdForNotification && monitoredSearchIdForNotification) {
+        let newFoundOffersForNotification = [];
+        for (const offer of processedOffers) {
+            const urlHash = crypto.createHash('sha256').update(offer.url).digest('hex');
+            try {
+                const [seenResult] = await db.execute(
+                    'INSERT IGNORE INTO seen_monitored_offers (monitored_search_id, offer_url_hash) VALUES (?, ?)',
+                    [monitoredSearchIdForNotification, urlHash]
+                );
+                if (seenResult.affectedRows > 0) {
+                    newFoundOffersForNotification.push(offer);
+                }
+            } catch (e) {
+                if (e.code === 'ER_DUP_ENTRY') { /* Ist bereits gesehen */ }
+                else { console.error("DB Fehler beim Prüfen/Einfügen in seen_monitored_offers:", e); }
             }
         }
 
-        const uniqueOffersMap = new Map();
-        allOffers.forEach(offer => {
-            if (offer.url && !uniqueOffersMap.has(offer.url)) {
-                uniqueOffersMap.set(offer.url, offer);
+        if (newFoundOffersForNotification.length > 0) {
+            console.log(`${newFoundOffersForNotification.length} neue Angebote für überwachte Suche ID ${monitoredSearchIdForNotification} (User ${userIdForNotification}) gefunden.`);
+            for (const newOffer of newFoundOffersForNotification) {
+                try {
+                    await db.execute(
+                        'INSERT INTO notifications (user_id, monitored_search_id, offer_title, offer_url, offer_price) VALUES (?, ?, ?, ?, ?)',
+                        [userIdForNotification, monitoredSearchIdForNotification, newOffer.title.substring(0,254), newOffer.url, `${newOffer.price} ${newOffer.priceType}`.substring(0,99)]
+                    );
+                } catch (e) { console.error("DB Fehler beim Erstellen der Notification:", e); }
             }
-        });
-        allOffers = Array.from(uniqueOffersMap.values());
+        }
+        await db.execute('UPDATE monitored_searches SET last_checked_at = CURRENT_TIMESTAMP, last_found_count = ? WHERE id = ?', [processedOffers.length, monitoredSearchIdForNotification]);
+    }
+    return processedOffers;
+}
 
-        let filteredOffers = allOffers.filter(offer => {
-            const title = offer.title.toLowerCase();
-            return !excludedWords.some(keyword => title.includes(keyword));
-        });
 
-        let finalOffersProcessed = filteredOffers.map(offer => { // Umbenannt, um Verwechslung zu vermeiden
-            const price = extractPrice(offer.middleText);
-            const priceType = extractPriceType(offer.middleText);
-            return {
-                title: offer.title,
-                price: price ?? 0,
-                priceType: price ? priceType : "unbekannt",
-                location: offer.location,
-                url: offer.url,
-                image: offer.image
-            };
-        });
+// Angepasster /scrape Endpunkt
+let activeUserScrapes = {};
 
-        const gpuOffers = finalOffersProcessed.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
-        const otherOffers = finalOffersProcessed.filter(o => o.price > 0 && !isGraphicCardOffer(o.title));
+app.get('/scrape', ensureAuthenticated, async (req, res) => {
+    const { userId } = req.session;
 
-        const assignScore = (offersList) => {
-            if (offersList.length > 1) {
-                const prices = offersList.map(o => o.price);
-                const min = Math.min(...prices), max = Math.max(...prices);
-                offersList.forEach(o => o.score = (max !== min) ? Math.round(((max - o.price) / (max - min)) * 100) : 0);
-            } else {
-                offersList.forEach(o => o.score = 0);
-            }
+    if (activeUserScrapes[userId]) {
+        return res.status(409).json({ message: 'Eine Suche für Sie läuft bereits.' });
+    }
+    activeUserScrapes[userId] = true;
+    
+    // AbortController wird in diesem Kontext nicht direkt an performScrape übergeben,
+    // da req.on('close') das serverseitige Abbrechen versucht (was bei Playwright schwierig ist, sobald es gestartet wurde).
+    // Die Logik von req.on('close') ist eher ein Versuch, Ressourcen freizugeben, wenn der Client verschwindet.
+    // Der eigentliche Playwright-Prozess läuft ggf. weiter bis zum Timeout oder Abschluss.
+
+    try {
+        const scrapeParams = {
+            query: req.query.query, pages: req.query.pages, plz: req.query.plz, radius: req.query.radius,
+            minPrice: req.query.minPrice, priceLimit: req.query.priceLimit, excludeWords: req.query.excludeWords,
+            categoryId: req.query.categoryId, categorySlug: req.query.categorySlug
         };
 
-        assignScore(gpuOffers);
-        assignScore(otherOffers);
+        const processedOffers = await performScrape(scrapeParams); // Ruft ohne Notification-Logik auf
 
-        const remaining = finalOffersProcessed.filter(o => o.price === 0);
-        remaining.forEach(o => o.score = 0);
+        const gpuOffers = processedOffers.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
+        const otherOffers = processedOffers.filter(o => o.price > 0 && !isGraphicCardOffer(o.title));
+        const assignScore = (list) => { if(list.length>1){const p=list.map(o=>o.price); const min=Math.min(...p),max=Math.max(...p); list.forEach(o=>o.score=(max!==min)?Math.round(((max-o.price)/(max-min))*100):0);}else{list.forEach(o=>o.score=0);}};
+        assignScore(gpuOffers); assignScore(otherOffers);
+        const remaining = processedOffers.filter(o => o.price === 0); remaining.forEach(o=>o.score=0);
+        const allSorted = [...gpuOffers, ...otherOffers, ...remaining].sort((a,b) => b.score - a.score);
 
-        const allSorted = [...gpuOffers, ...otherOffers, ...remaining].sort((a, b) => b.score - a.score);
-
-        // Ergebnisse speichern, wenn gewünscht
-        if (saveResults && allSorted.length > 0) {
-            console.log(`Speichere ${allSorted.length} Ergebnisse für User ${userId} unter Session "${sessionName}"...`);
-            let currentSessionDbId = null; // ID der DB-Session-Zeile
+        if (req.query.saveResults === 'true' && allSorted.length > 0) {
+            const sessionName = req.query.sessionName || `Manueller Scrape ${new Date().toLocaleString()}`;
+            // HIER DEINE LOGIK ZUM SPEICHERN IN scraped_offers_sessions UND scraped_offers_results EINFÜGEN
+            // Beispielhaft:
             try {
                 const [sessionResult] = await db.execute(
                     'INSERT INTO scraped_offers_sessions (user_id, session_name) VALUES (?, ?)',
                     [userId, sessionName]
                 );
-                currentSessionDbId = sessionResult.insertId;
-
+                const currentSessionDbId = sessionResult.insertId;
                 for (const offer of allSorted) {
                     await db.execute(
                         `INSERT INTO scraped_offers_results (session_id, user_id, title, price, price_type, location, url, image_url)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE price=VALUES(price), price_type=VALUES(price_type), scraped_at=CURRENT_TIMESTAMP`, // Bei Duplikat (URL) aktualisieren
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE price=VALUES(price), price_type=VALUES(price_type), scraped_at=CURRENT_TIMESTAMP`,
                         [currentSessionDbId, userId, offer.title, offer.price, offer.priceType, offer.location, offer.url, offer.image]
                     );
                 }
-                console.log("Speichern der Ergebnisse abgeschlossen.");
+                console.log(`Ergebnisse des manuellen Scrapes "${sessionName}" für User ${userId} gespeichert.`);
             } catch (dbError) {
-                console.error("Fehler beim Speichern der Scraping-Ergebnisse in DB:", dbError);
+                console.error("Fehler beim Speichern der manuellen Scrape-Ergebnisse:", dbError);
             }
         }
         res.json(allSorted);
 
     } catch (error) {
-        if (abortController.signal.aborted) {
-            return res.status(499).json({ message: 'Suche abgebrochen durch Benutzer.' });
-        }
-        console.error('Fehler während des Scrapings:', error);
+        console.error('Fehler während des Scrapings im /scrape Endpunkt:', error.message);
         res.status(500).json({ message: 'Fehler während des Scrapings.', error: error.message });
     } finally {
-        if (browser) {
-            await browser.close();
-        }
-        if (!(req.query.auto === 'true')) {
-            currentScraping = null;
-        }
-        console.log('Scraping-Vorgang beendet und Ressourcen freigegeben.');
+        delete activeUserScrapes[userId];
+        console.log(`Manueller Scrape für User ${userId} beendet oder fehlgeschlagen.`);
     }
 });
 
-// Endpunkt zum Abbrechen einer laufenden Suche
 app.post('/cancel', ensureAuthenticated, (req, res) => {
-    if (currentScraping) {
-        console.log(`Nutzer ${req.session.userId} bricht Suche ab...`);
-        currentScraping.abort();
-        res.json({ message: 'Suche wird abgebrochen.' });
-    } else {
-        res.status(404).json({ message: 'Keine aktive Suche zum Abbrechen vorhanden.' });
-    }
+    // Dieser Endpunkt ist schwierig umzusetzen, da der Playwright-Prozess, einmal gestartet,
+    // schwer von außen "sauber" abzubrechen ist, ohne den Browser abrupt zu schließen.
+    // Die req.on('close') im /scrape ist ein besserer Ansatz für Client-Disconnects.
+    console.log(`Abbruchanfrage von User ${req.session.userId} für einen manuellen Scrape erhalten. Aktuell nicht direkt unterstützt, Scrape läuft ggf. weiter.`);
+    res.status(510).json({ message: 'Abbruchanfrage empfangen, aber das direkte Abbrechen laufender serverseitiger Scrapes ist komplex. Der Scrape läuft ggf. zu Ende.' });
 });
 
-// Serverstart
+
+// --- Cronjob für überwachte Suchen ---
+cron.schedule('*/10 * * * *', async () => { // Alle 10 Minuten
+    console.log('⏰ Cronjob: Starte Überprüfung überwachter Suchen...');
+    let activeMonitors = [];
+    try {
+        [activeMonitors] = await db.execute( // Destrukturierung des Ergebnisses
+            'SELECT * FROM monitored_searches WHERE is_active = TRUE'
+        );
+    } catch (dbError) {
+        console.error('⏰ Cronjob: Fehler beim Abrufen aktiver Monitore aus DB:', dbError);
+        return; // Breche diesen Cron-Lauf ab, wenn DB nicht erreichbar
+    }
+
+    if (activeMonitors.length === 0) {
+        console.log('⏰ Cronjob: Keine aktiven Überwachungen gefunden.');
+        return;
+    }
+
+    console.log(`⏰ Cronjob: ${activeMonitors.length} aktive Überwachung(en) gefunden.`);
+
+    for (const monitor of activeMonitors) {
+        console.log(`⏰ Cronjob: Verarbeite Überwachung ID ${monitor.id} für User ID ${monitor.user_id} (Name: ${monitor.search_name})`);
+        try {
+            let queryParams = {};
+            try {
+                queryParams = JSON.parse(monitor.query_params);
+            } catch (parseError) {
+                console.error(`⏰ Cronjob: Fehler beim Parsen von query_params für Monitor ID ${monitor.id}: ${monitor.query_params}. Überspringe diesen Monitor.`, parseError);
+                await db.execute('UPDATE monitored_searches SET last_checked_at = CURRENT_TIMESTAMP, is_active = FALSE WHERE id = ?', [monitor.id]); // Deaktiviere fehlerhaften Monitor
+                continue; // Nächster Monitor
+            }
+            
+            await performScrape(queryParams, monitor.user_id, monitor.id);
+            console.log(`⏰ Cronjob: Überwachung ID ${monitor.id} erfolgreich abgeschlossen.`);
+
+        } catch (scrapeError) {
+            console.error(`⏰ Cronjob: Fehler bei der Ausführung von Überwachung ID ${monitor.id}: ${scrapeError.message}.`);
+            // Update last_checked_at auch bei Fehler, um nicht sofort wieder zu versuchen
+            try {
+                await db.execute('UPDATE monitored_searches SET last_checked_at = CURRENT_TIMESTAMP WHERE id = ?', [monitor.id]);
+            } catch (updateError) {
+                console.error(`⏰ Cronjob: Fehler beim Aktualisieren von last_checked_at für Monitor ID ${monitor.id} nach Fehler:`, updateError);
+            }
+        }
+        // Kurze Pause zwischen den einzelnen überwachten Suchen, um nicht zu aggressiv zu sein
+        console.log(`⏰ Cronjob: Kurze Pause nach Monitor ID ${monitor.id}...`);
+        await new Promise(resolve => setTimeout(resolve, 20000 + Math.random() * 10000)); // 20-30 Sekunden Pause
+    }
+    console.log('⏰ Cronjob: Alle aktiven Überwachungen für diesen Zyklus verarbeitet.');
+});
+
+
 app.listen(PORT, () => {
     console.log(`✅ Server läuft auf http://localhost:${PORT}`);
+    console.log("⏰ Cronjob für überwachte Suchen ist initialisiert und läuft alle 10 Minuten.");
 });

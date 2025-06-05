@@ -18,7 +18,8 @@
     </div>
 </div>
 
-<div id="appContainer" style="display:none;"> <header class="topbar">
+<div id="appContainer" style="display:none;">
+    <header class="topbar">
         <div class="nav-content">
             <button class="menu-button" onclick="toggleCategoryMenu()" aria-label="Kategorienmenü öffnen">
                 <i class="fas fa-bars"></i>
@@ -30,108 +31,129 @@
                 <a href="#" onclick="quickSearch('RX 6700 XT')">RX 6700 XT</a>
                 <a href="#" onclick="quickSearch('RTX 3070')">RTX 3070</a>
             </nav>
-            <div class="user-info">
-                <span id="usernameDisplay">Angemeldet als: ...</span>
-                <button onclick="logoutUser()" class="logout-button" title="Abmelden"><i class="fas fa-sign-out-alt"></i></button>
+            <div class="user-actions"> <div class="user-info">
+                    <div id="userProfileButton" class="user-profile-button" onclick="toggleProfileDropdown()">
+                        <span id="usernameDisplay">Angemeldet als: ...</span>
+                        <i class="fas fa-chevron-down profile-arrow"></i>
+                    </div>
+                    <div id="profileDropdownMenu" class="profile-dropdown-menu">
+                        <a href="dashboard.html" id="openDashboardLink">Dashboard</a>
+                        <a href="#" onclick="logoutUser()">Abmelden</a>
+                    </div>
+                </div>
+                <button id="inboxButton" class="icon-button inbox-button" onclick="openInbox()" title="Postfach">
+                    <i class="fas fa-inbox"></i>
+                    <span id="inboxNotificationBadge" class="notification-badge" style="display:none;">0</span>
+                </button>
             </div>
         </div>
     </header>
 
-    <main class="wrapper">
-        <h1>Kleinanzeigen Sniper</h1>
-
-        <div id="userMessages" class="user-messages" style="display:none;"></div>
-
-        <section class="form-section card">
+    <div id="dashboardView" class="view-container card" style="display:none;">
+        <h2><i class="fas fa-tachometer-alt"></i> Dashboard für automatische Suchen</h2>
+        <section id="addMonitoredSearchSection">
+            <h3>Neue automatische Suche hinzufügen</h3>
             <div class="input-group">
-                <input type="text" id="query" placeholder="z.B. RTX 3080">
-                <input type="text" id="plz" placeholder="PLZ">
-                <div class="select-wrapper">
-                    <select id="radius">
-                        <option value="0">Umkreis wählen</option>
-                        <option value="5">+5 km</option>
-                        <option value="10">+10 km</option>
-                        <option value="20" selected>+20 km</option>
-                        <option value="50">+50 km</option>
-                        <option value="100">+100 km</option>
-                        <option value="150">+150 km</option>
-                        <option value="200">+200 km</option>
-                    </select>
-                </div>
+                <input type="text" id="monitorSearchName" placeholder="Name für diese Überwachung">
+                <input type="text" id="monitorQuery" placeholder="Suchbegriff (z.B. RTX 4070)">
             </div>
-
-            <button class="toggle-filters-button" onclick="toggleFilters()">
-                <i class="fas fa-filter"></i> Erweiterte Filter <span class="filter-arrow"><i class="fas fa-chevron-down"></i></span>
-            </button>
-
-            <div id="advanced-filters" class="hidden">
-                <div class="input-group">
-                    <input type="number" id="minPrice" placeholder="Min Preis">
-                    <input type="number" id="priceLimit" placeholder="Max Preis">
-                </div>
-                <div class="input-group">
-                    <input type="number" id="pages" placeholder="Seiten (max. 50)">
-                    <input type="email" id="email" placeholder="E-Mail für Benachrichtigung (noch nicht aktiv)">
-                </div>
-
-                <div class="input-group auto-search-group">
-                    <label class="auto-toggle-label">
-                        <input type="checkbox" id="autoSearchToggle" onchange="toggleAutoSearch(this)">
-                        <span class="custom-checkmark"></span>
-                        Client-Auto-Suche aktivieren
-                    </label>
-                    <input type="number" id="autoInterval" placeholder="Intervall (s)" min="5">
-                </div>
-                 <div class="input-group">
-                    <label class="auto-toggle-label" for="saveResultsCheckbox">
-                        <input type="checkbox" id="saveResultsCheckbox">
-                        <span class="custom-checkmark"></span>
-                        Ergebnisse dieser Suche speichern
-                    </label>
-                    <input type="text" id="scrapeSessionName" placeholder="Name für Ergebnis-Session (optional)">
-                </div>
-
-
-                <section class="exclude-section">
-                    <h3><i class="fas fa-minus-circle"></i> Wörter ausschließen</h3>
-                    <div id="exclude-word-list" class="word-list"></div>
-                    <div class="input-group">
-                        <input type="text" id="customExclude" placeholder="Wort hinzufügen">
-                        <button class="button-add" onclick="addCustomExclude()"><i class="fas fa-plus"></i> Hinzufügen</button>
-                    </div>
-                </section>
+            <div class="input-group">
+                <input type="text" id="monitorPlz" placeholder="PLZ (optional)">
+                <select id="monitorRadius" class="radius-select-small"> <option value="0">Umkreis</option><option value="5">+5km</option><option value="200">+200km</option>
+                </select>
             </div>
-
-            <div class="form-actions">
-                <button class="button-primary" onclick="fetchOffers()"><i class="fas fa-sync-alt"></i> Angebote aktualisieren</button>
-                <button class="button-secondary" onclick="cancelSearch()"><i class="fas fa-times-circle"></i> Suche abbrechen</button>
-            </div>
-            <hr class="form-divider">
-            <div class="save-search-actions input-group">
-                <input type="text" id="searchNameToSave" placeholder="Name für aktuelle Suche">
-                <button class="button-save-search" onclick="saveCurrentSearch()"><i class="fas fa-save"></i> Aktuelle Suche speichern</button>
-            </div>
+             <button class="button-primary" onclick="addMonitoredSearch()">Überwachung hinzufügen</button>
         </section>
-
-        <section id="savedSearchesSection" class="card" style="display:none;">
-            <h2><i class="fas fa-bookmark"></i> Gespeicherte Suchen</h2>
-            <ul id="savedSearchesList">
+        <section id="activeMonitoredSearchesSection">
+            <h3>Aktive Überwachungen</h3>
+            <ul id="monitoredSearchesList">
                 </ul>
-             <p id="noSavedSearches" style="display:none;">Noch keine Suchen gespeichert.</p>
+            <p id="noMonitoredSearches" style="display:none;">Keine aktiven Überwachungen.</p>
         </section>
+    </div>
 
-        <div id="loader" class="loader" style="display: none;">
-            <div class="spinner"></div>
-            <p>Suche läuft...</p>
-        </div>
-
-        <div id="selectedCategoryContainer" class="selected-category-info" style="display: none;">
-            Ausgewählte Kategorie: <strong id="selectedCategoryNameText"></strong>
-            <button id="clearCategoryButton" onclick="clearSelectedCategory()"><i class="fas fa-times"></i> Auswahl aufheben</button>
-        </div>
-        
-        <div id="results">
+    <div id="inboxView" class="view-container card" style="display:none;">
+        <h2><i class="fas fa-envelope-open-text"></i> Dein Postfach</h2>
+        <div id="inboxMessages">
             </div>
+        <p id="noInboxMessages" style="display:none;">Keine neuen Nachrichten.</p>
+        <button class="button-secondary" onclick="markAllNotificationsAsRead()">Alle als gelesen markieren</button>
+    </div>
+
+
+    <main class="wrapper" id="mainSearchView"> <h1>Kleinanzeigen Sniper</h1>
+        <div id="userMessages" class="user-messages" style="display:none;"></div>
+        <section class="form-section card">
+             <div class="input-group">
+                 <input type="text" id="query" placeholder="z.B. RTX 3080">
+                 <input type="text" id="plz" placeholder="PLZ">
+                 <div class="select-wrapper">
+                     <select id="radius">
+                         <option value="0">Umkreis wählen</option>
+                         <option value="5">+5 km</option><option value="10">+10 km</option><option value="20" selected>+20 km</option><option value="50">+50 km</option><option value="100">+100 km</option><option value="150">+150 km</option><option value="200">+200 km</option>
+                     </select>
+                 </div>
+             </div>
+             <button class="toggle-filters-button" onclick="toggleFilters()">
+                 <i class="fas fa-filter"></i> Erweiterte Filter <span class="filter-arrow"><i class="fas fa-chevron-down"></i></span>
+             </button>
+             <div id="advanced-filters" class="hidden">
+                 <div class="input-group">
+                     <input type="number" id="minPrice" placeholder="Min Preis">
+                     <input type="number" id="priceLimit" placeholder="Max Preis">
+                 </div>
+                 <div class="input-group">
+                     <input type="number" id="pages" placeholder="Seiten (max. 50)">
+                     <input type="email" id="email" placeholder="E-Mail für Benachrichtigung (noch nicht aktiv)">
+                 </div>
+                 <div class="input-group auto-search-group">
+                     <label class="auto-toggle-label">
+                         <input type="checkbox" id="autoSearchToggle" onchange="toggleAutoSearch(this)">
+                         <span class="custom-checkmark"></span>
+                         Client-Auto-Suche aktivieren
+                     </label>
+                     <input type="number" id="autoInterval" placeholder="Intervall (s)" min="5">
+                 </div>
+                  <div class="input-group">
+                     <label class="auto-toggle-label" for="saveResultsCheckbox">
+                         <input type="checkbox" id="saveResultsCheckbox">
+                         <span class="custom-checkmark"></span>
+                         Ergebnisse dieser Suche speichern
+                     </label>
+                     <input type="text" id="scrapeSessionName" placeholder="Name für Ergebnis-Session (optional)">
+                 </div>
+                 <section class="exclude-section">
+                     <h3><i class="fas fa-minus-circle"></i> Wörter ausschließen</h3>
+                     <div id="exclude-word-list" class="word-list"></div>
+                     <div class="input-group">
+                         <input type="text" id="customExclude" placeholder="Wort hinzufügen">
+                         <button class="button-add" onclick="addCustomExclude()"><i class="fas fa-plus"></i> Hinzufügen</button>
+                     </div>
+                 </section>
+             </div>
+             <div class="form-actions">
+                 <button class="button-primary" onclick="fetchOffers()"><i class="fas fa-sync-alt"></i> Angebote aktualisieren</button>
+                 <button class="button-secondary" onclick="cancelSearch()"><i class="fas fa-times-circle"></i> Suche abbrechen</button>
+             </div>
+             <hr class="form-divider">
+             <div class="save-search-actions input-group">
+                 <input type="text" id="searchNameToSave" placeholder="Name für aktuelle Suche">
+                 <button class="button-save-search" onclick="saveCurrentSearch()"><i class="fas fa-save"></i> Aktuelle Suche speichern</button>
+             </div>
+         </section>
+         <section id="savedSearchesSection" class="card" style="display:none;">
+             <h2><i class="fas fa-bookmark"></i> Gespeicherte Suchen</h2>
+             <ul id="savedSearchesList"></ul>
+              <p id="noSavedSearches" style="display:none;">Noch keine Suchen gespeichert.</p>
+         </section>
+         <div id="loader" class="loader" style="display: none;">
+             <div class="spinner"></div><p>Suche läuft...</p>
+         </div>
+         <div id="selectedCategoryContainer" class="selected-category-info" style="display: none;">
+             Ausgewählte Kategorie: <strong id="selectedCategoryNameText"></strong>
+             <button id="clearCategoryButton" onclick="clearSelectedCategory()"><i class="fas fa-times"></i> Auswahl aufheben</button>
+         </div>
+         <div id="results"></div>
     </main>
 
        <aside id="categoryMenu" class="category-menu">
