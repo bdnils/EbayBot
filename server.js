@@ -83,40 +83,87 @@ app.get('/api/auth-status', (req, res) => {
 });
 
 // --- Endpunkte zum Speichern und Laden von (manuellen) Suchen ---
+// --- Endpunkte zum Speichern und Laden von (manuellen) Suchen ---
+
+// GEÄNDERT: Nimmt jetzt die neuen Auto-Filter entgegen und speichert sie.
+// GEÄNDERT: Stellt sicher, dass keine 'undefined' Werte an die Datenbank übergeben werden.
 app.post('/api/saved-searches', ensureAuthenticated, async (req, res) => {
     const { userId } = req.session;
+    
     const {
         search_name, query, pages, plz, radius,
         exclude_words, min_price, price_limit,
-        category_slug, category_id
+        category_slug, category_id, category_name,
+        km_min, km_max, ez_min, ez_max, power_min, power_max, tuev_min
     } = req.body;
 
     if (!search_name) {
         return res.status(400).json({ success: false, message: 'Suchname ist erforderlich.' });
     }
+
     try {
-        const [result] = await db.execute(
-            `INSERT INTO saved_searches (user_id, search_name, query, pages, plz, radius, exclude_words, min_price, price_limit, category_slug, category_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [userId, search_name, query, pages, plz, radius, exclude_words, min_price, price_limit, category_slug, category_id]
-        );
+        const sql = `
+            INSERT INTO saved_searches (
+                user_id, search_name, query, pages, plz, radius, 
+                exclude_words, min_price, price_limit, category_slug, 
+                category_id, category_name, km_min, km_max, ez_min, ez_max, 
+                power_min, power_max, tuev_min
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        // KORREKTUR: Hier stellen wir sicher, dass alle potenziell fehlenden Werte
+        // als 'null' an die Datenbank übergeben werden, anstatt 'undefined'.
+        const values = [
+            userId, 
+            search_name, 
+            query, 
+            pages, 
+            plz, 
+            radius, 
+            exclude_words, 
+            min_price, 
+            price_limit, 
+            category_slug, 
+            category_id, 
+            category_name, 
+            km_min || null, 
+            km_max || null, 
+            ez_min || null, 
+            ez_max || null, 
+            power_min || null, 
+            power_max || null, 
+            tuev_min || null
+        ];
+
+        const [result] = await db.execute(sql, values);
+        
         res.status(201).json({ success: true, message: 'Suche gespeichert.', searchId: result.insertId });
+
     } catch (error) {
+        // Dieser Block wurde durch den Fehler ausgelöst
         console.error('Fehler beim Speichern der Suche:', error);
         res.status(500).json({ success: false, message: 'Fehler beim Speichern der Suche.' });
     }
 });
 
+// GEÄNDERT: Liest jetzt auch die neuen Auto-Filter aus der Datenbank aus.
 app.get('/api/saved-searches', ensureAuthenticated, async (req, res) => {
     const { userId } = req.session;
     try {
-        // Annahme: `category_name` wird für die Anzeige im Frontend benötigt und ist Teil der `saved_searches`-Tabelle
-        // Falls nicht, muss dieser SELECT angepasst werden oder der Frontend-Code, der `category_name` erwartet.
-        const [searches] = await db.execute(
-            'SELECT id, search_name, query, pages, plz, radius, exclude_words, min_price, price_limit, category_slug, category_id, created_at FROM saved_searches WHERE user_id = ? ORDER BY created_at DESC',
-            // Wenn du category_name in der DB hast: 'SELECT id, search_name, ..., category_name, created_at FROM ...'
-            [userId]
-        );
+        // HINZUGEFÜGT: Das SELECT-Statement um die neuen Spalten erweitert.
+        const sql = `
+            SELECT 
+                id, search_name, query, pages, plz, radius, 
+                exclude_words, min_price, price_limit, category_slug, 
+                category_id, category_name, created_at,
+                km_min, km_max, ez_min, ez_max, power_min, power_max, tuev_min
+            FROM saved_searches 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC
+        `;
+        
+        const [searches] = await db.execute(sql, [userId]);
+        
         res.json({ success: true, searches });
     } catch (error) {
         console.error('Fehler beim Laden der Suchen:', error);
@@ -124,6 +171,7 @@ app.get('/api/saved-searches', ensureAuthenticated, async (req, res) => {
     }
 });
 
+// UNVERÄNDERT: Dieser Endpunkt bleibt gleich.
 app.delete('/api/saved-searches/:id', ensureAuthenticated, async (req, res) => {
     const { userId } = req.session;
     const searchId = req.params.id;
@@ -316,14 +364,16 @@ function isGraphicCardOffer(title) {
 async function performScrape(scrapeParams, userIdForNotification = null, monitoredSearchIdForNotification = null) {
     console.log(`Starte Scrape mit Parametern:`, scrapeParams, `Für UserNotification: ${userIdForNotification}, MonitorID: ${monitoredSearchIdForNotification}`);
 
+    // GEÄNDERT: Neue Parameter für die Autosuche hinzugefügt
     const {
         query = "grafikkarte", pages = 1, plz, radius,
         minPrice, priceLimit, excludeWords: rawExcludes = '', // rawExcludes ist ein String
-        categoryId, categorySlug
+        categoryId, categorySlug,
+        // NEU: Spezifische Parameter für die Kategorie "Autos"
+        kmMin, kmMax, ezMin, ezMax, powerMin, powerMax, tuevMin
     } = scrapeParams;
 
     const searchQuery = query.trim().replace(/\s+/g, '-');
-    // Für Cronjob ggf. weniger Seiten, z.B. nur 1-2, um schneller zu sein und "frische" Angebote zu finden
     const pagesToScrape = userIdForNotification ? Math.min(parseInt(pages) || 1, 2) : Math.min(parseInt(pages) || 10, 50);
     const excludedWordsArray = typeof rawExcludes === 'string' ? rawExcludes.split(',').map(w => w.trim().toLowerCase()).filter(Boolean) : [];
     
@@ -339,37 +389,43 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
     else if (minPrice != null) preisSegment = `/preis:${minPrice}:`;
     else if (priceLimit != null) preisSegment = `/preis::${priceLimit}`;
 
+    // NEU: Segment für die Auto-Parameter erstellen
+    let carParamsSegment = '';
+    if (categorySlug === 'autos') {
+        const carParams = [];
+        // Kilometerstand (km_i)
+        if (kmMin || kmMax) {
+            carParams.push(`autos.km_i:${kmMin || ''},${kmMax || ''}`);
+        }
+        // Erstzulassung (ez_i)
+        if (ezMin || ezMax) {
+            carParams.push(`autos.ez_i:${ezMin || ''},${ezMax || ''}`);
+        }
+        // Leistung (power_i)
+        if (powerMin || powerMax) {
+            carParams.push(`autos.power_i:${powerMin || ''},${powerMax || ''}`);
+        }
+        // TÜV Jahr (tuevy_i) - hat oft nur einen Mindestwert
+        if (tuevMin) {
+            carParams.push(`autos.tuevy_i:${tuevMin},`);
+        }
+
+        if (carParams.length > 0) {
+            // Das Segment wird mit '+' an die Kategorie-ID angehängt
+            carParamsSegment = '+' + carParams.join('+');
+        }
+    }
+
+
     let allScrapedOffers = [];
-    let browser = null; // Wichtig: Initialisiere mit null
+    let browser = null;
 
     try {
-        browser = await chromium.launch({ headless: true }); // Du könntest hier Argumente wie '--no-sandbox' für Docker hinzufügen
+        browser = await chromium.launch({ headless: true });
         const context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/124.0.0.0 Safari/537.36', // Aktuellerer UserAgent
-            javaScriptEnabled: true, // Standard, aber explizit
-            // Ggf. Proxy-Einstellungen hier, falls nötig
+             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/124.0.0.0 Safari/537.36',
+             javaScriptEnabled: true,
         });
-        // Cookies blockieren, um Tracking zu reduzieren und die Seite sauberer zu halten (optional)
-        // await context.addInitScript(() => {
-        //     const block = ['google-analytics.com', 'googletagmanager.com', 'scorecardresearch.com'];
-        //     const originalFetch = window.fetch;
-        //     window.fetch = (...args) => {
-        //         if (args[0] && block.some(b => args[0].includes(b))) {
-        //             return Promise.reject(new Error('Blocked by custom script'));
-        //         }
-        //         return originalFetch(...args);
-        //     };
-        // });
-        // await context.route('**/*', route => { // Bilder, CSS etc. blockieren um Speed zu erhöhen
-        //     const resourceType = route.request().resourceType();
-        //     if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
-        //         route.abort();
-        //     } else {
-        //         route.continue();
-        //     }
-        // });
-
-
         const page = await context.newPage();
 
         for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
@@ -380,9 +436,13 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
                 if (pageNum > 1) currentUrlPath += `/seite:${pageNum}`;
                 if (preisSegment) currentUrlPath += preisSegment;
                 currentUrlPath += `/${searchQuery}`;
-                currentUrlPath += `/k0c${categoryId}`;
+                
+                // GEÄNDERT: Das neue Auto-Parameter-Segment hier anhängen
+                currentUrlPath += `/k0c${categoryId}${carParamsSegment}`; // z.B. /k0c216+autos.km_i:10000,150000
+
                 if (ortId) { currentUrlPath += `l${ortId}`; if (radius) currentUrlPath += `r${radius}`; }
             } else {
+                // ... (Legacy-Pfad ohne Kategorie, bleibt unverändert)
                 let legacyPath = "";
                 if (plz && ortId) legacyPath += plz;
                 if (pageNum > 1) { if (legacyPath.length > 0) legacyPath += "/"; legacyPath += `seite:${pageNum}`; }
@@ -390,9 +450,9 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
                 if (legacyPath.length > 0 && !legacyPath.endsWith('/')) legacyPath += "/";
                 legacyPath += searchQuery; legacyPath += "/k0";
                 if (ortId) { legacyPath += `l${ortId}`; if (radius) legacyPath += `r${radius}`; }
-                currentUrlPath = legacyPath; // Das 's-' wird unten hinzugefügt
+                currentUrlPath = legacyPath;
             }
-            const finalUrl = `https://www.kleinanzeigen.de/s-${currentUrlPath}`; // Sicherstellen, dass 's-' immer da ist
+            const finalUrl = `https://www.kleinanzeigen.de/${currentUrlPath.startsWith('s-') ? currentUrlPath : 's-' + currentUrlPath}`;
             
             console.log(`(PerformScrape) Lade Seite ${pageNum}: ${finalUrl}`);
             try {
@@ -499,19 +559,29 @@ app.get('/scrape', ensureAuthenticated, async (req, res) => {
     }
     activeUserScrapes[userId] = true;
     
-    // AbortController wird in diesem Kontext nicht direkt an performScrape übergeben,
-    // da req.on('close') das serverseitige Abbrechen versucht (was bei Playwright schwierig ist, sobald es gestartet wurde).
-    // Die Logik von req.on('close') ist eher ein Versuch, Ressourcen freizugeben, wenn der Client verschwindet.
-    // Der eigentliche Playwright-Prozess läuft ggf. weiter bis zum Timeout oder Abschluss.
-
     try {
+        // GEÄNDERT: Die neuen Parameter aus req.query auslesen
         const scrapeParams = {
-            query: req.query.query, pages: req.query.pages, plz: req.query.plz, radius: req.query.radius,
-            minPrice: req.query.minPrice, priceLimit: req.query.priceLimit, excludeWords: req.query.excludeWords,
-            categoryId: req.query.categoryId, categorySlug: req.query.categorySlug
+            query: req.query.query,
+            pages: req.query.pages,
+            plz: req.query.plz,
+            radius: req.query.radius,
+            minPrice: req.query.minPrice,
+            priceLimit: req.query.priceLimit,
+            excludeWords: req.query.excludeWords,
+            categoryId: req.query.categoryId,
+            categorySlug: req.query.categorySlug,
+            // NEU: Parameter für die Autosuche an das scrapeParams-Objekt übergeben
+            kmMin: req.query.kmMin,
+            kmMax: req.query.kmMax,
+            ezMin: req.query.ezMin,
+            ezMax: req.query.ezMax,
+            powerMin: req.query.powerMin,
+            powerMax: req.query.powerMax,
+            tuevMin: req.query.tuevMin
         };
 
-        const processedOffers = await performScrape(scrapeParams); // Ruft ohne Notification-Logik auf
+        const processedOffers = await performScrape(scrapeParams);
 
         const gpuOffers = processedOffers.filter(o => o.price > 0 && isGraphicCardOffer(o.title));
         const otherOffers = processedOffers.filter(o => o.price > 0 && !isGraphicCardOffer(o.title));
@@ -614,7 +684,4 @@ cron.schedule('*/10 * * * *', async () => { // Alle 10 Minuten
 });
 
 
-app.listen(PORT, () => {
-    console.log(`✅ Server läuft auf http://localhost:${PORT}`);
-    console.log("⏰ Cronjob für überwachte Suchen ist initialisiert und läuft alle 10 Minuten.");
-});
+app.listen(3000, '0.0.0.0', () => console.log('Server läuft auf Port 3000'));

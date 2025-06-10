@@ -108,6 +108,9 @@ function showLoginView() {
 }
 
 // --- Login / Logout ---
+// --- Login / Logout ---
+
+// GEÄNDERT: Diese Funktion initialisiert die App jetzt direkt nach dem erfolgreichen Login.
 window.submitAccessCode = async function() {
     const codeInput = document.getElementById("accessCode");
     const errorMsg = document.getElementById("loginError");
@@ -130,7 +133,38 @@ window.submitAccessCode = async function() {
         const data = await response.json();
 
         if (data.success) {
-            await checkAuthStatusAndInitializeApp();
+            // ---- HIER IST DIE KORREKTUR ----
+            // Statt checkAuthStatusAndInitializeApp() aufzurufen,
+            // handeln wir direkt auf Basis der erfolgreichen Login-Antwort.
+
+            // 1. Globale Variablen und Session Storage mit den Daten vom Login füllen
+            currentUserId = data.userId;
+            currentUsername = data.username;
+            sessionStorage.setItem("userId", data.userId);
+            sessionStorage.setItem("username", data.username);
+            sessionStorage.setItem("authenticated", "true");
+
+            // 2. Die Benutzeroberfläche aktualisieren
+            const usernameDisplay = document.getElementById('usernameDisplay');
+            if (usernameDisplay) usernameDisplay.textContent = `${currentUsername}`;
+            
+            const loginOverlay = document.getElementById('loginOverlay');
+            if (loginOverlay) loginOverlay.style.display = 'none';
+            
+            const appContainer = document.getElementById('appContainer');
+            if (appContainer) appContainer.style.display = 'block';
+            
+            document.body.classList.remove('locked');
+
+            // 3. Die App vollständig initialisieren (wie es checkAuthStatusAndInitializeApp tun würde)
+            navigateToView('mainSearchView');
+            loadSavedSearches();
+            initializeExcludeWords();
+            fetchNotificationsAndUpdateBadge();
+            
+            if (notificationPollingIntervalId) clearInterval(notificationPollingIntervalId);
+            notificationPollingIntervalId = setInterval(fetchNotificationsAndUpdateBadge, 60000);
+            
         } else {
             errorMsg.textContent = data.message || "❌ Zugang verweigert.";
             errorMsg.style.display = "block";
@@ -272,12 +306,15 @@ function saveExcludeWordsToLocalStorage() {
 }
 
 // --- Gespeicherte Suchen (Manuell) ---
+
+// GEÄNDERT: Diese Funktion speichert jetzt auch die Auto-Filter mit ab.
 window.saveCurrentSearch = async function() {
     if (!currentUserId) { showUserMessage("Bitte zuerst einloggen.", "error"); return; }
     const searchNameInput = document.getElementById('searchNameToSave');
     const search_name = searchNameInput?.value.trim();
     if (!search_name) { showUserMessage("Bitte Namen für Suche eingeben.", "error"); searchNameInput?.focus(); return; }
     
+    // Basis-Suchparameter sammeln
     const searchParams = {
         search_name,
         query: document.getElementById('query')?.value || "",
@@ -289,8 +326,19 @@ window.saveCurrentSearch = async function() {
         price_limit: document.getElementById('priceLimit')?.value ? parseInt(document.getElementById('priceLimit').value) : null,
         category_slug: selectedCategorySlug,
         category_id: selectedCategoryId,
-        category_name: selectedCategoryName 
+        category_name: selectedCategoryName
     };
+
+    // HINZUGEFÜGT: Wenn die Kategorie "autos" ist, füge die spezifischen Filter hinzu.
+    if (selectedCategorySlug === 'autos') {
+        searchParams.km_min = document.getElementById('kmMin')?.value || null;
+        searchParams.km_max = document.getElementById('kmMax')?.value || null;
+        searchParams.ez_min = document.getElementById('ezMin')?.value || null;
+        searchParams.ez_max = document.getElementById('ezMax')?.value || null;
+        searchParams.power_min = document.getElementById('powerMin')?.value || null;
+        searchParams.power_max = document.getElementById('powerMax')?.value || null;
+        searchParams.tuev_min = document.getElementById('tuevMin')?.value || null;
+    }
 
     try {
         const response = await fetch('/api/saved-searches', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(searchParams) });
@@ -300,81 +348,45 @@ window.saveCurrentSearch = async function() {
     } catch (err) { console.error("Fehler saveCurrentSearch:", err); showUserMessage("Netzwerkfehler Speichern.", "error");}
 };
 
-async function loadSavedSearches() {
-    if (!currentUserId) return;
-    const listElement = document.getElementById('savedSearchesList');
-    const sectionElement = document.getElementById('savedSearchesSection');
-    const noSearchesMsg = document.getElementById('noSavedSearches');
-    if (!listElement || !sectionElement || !noSearchesMsg) return;
+// ... die Funktion loadSavedSearches bleibt unverändert ...
 
-    try {
-        const response = await fetch('/api/saved-searches');
-        if(!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        listElement.innerHTML = ''; 
-        if (data.success && data.searches.length > 0) {
-            sectionElement.style.display = 'block'; noSearchesMsg.style.display = 'none';
-            data.searches.forEach(search => {
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <span class="search-name">${search.search_name}</span>
-                    <small>(Gespeichert: ${new Date(search.created_at).toLocaleDateString('de-DE')})</small>
-                    <div class="search-actions">
-                        <button class="load-search-btn" title="Diese Suche laden"><i class="fas fa-upload"></i> Laden</button>
-                        <button class="delete-search-btn" title="Diese Suche löschen"><i class="fas fa-trash"></i> Löschen</button>
-                    </div>`;
-                li.querySelector('.load-search-btn').addEventListener('click', (event) => applySavedSearch(event, search));
-                li.querySelector('.delete-search-btn').addEventListener('click', () => deleteSavedSearch(search.id));
-                listElement.appendChild(li);
-            });
-        } else if (data.success && data.searches.length === 0) {
-            sectionElement.style.display = 'block'; noSearchesMsg.style.display = 'block';
-            noSearchesMsg.textContent = 'Noch keine Suchen gespeichert.';
-        } else { 
-            showUserMessage(data.message || "Gespeicherte Suchen konnten nicht geladen werden.", "error"); 
-            if(sectionElement) sectionElement.style.display = 'none';
-        }
-    } catch (err) { 
-        console.error("Fehler loadSavedSearches:", err); 
-        showUserMessage("Netzwerkfehler beim Laden der Suchen.", "error"); 
-        if (sectionElement) sectionElement.style.display = 'none';
-    }
-}
-
+// GEÄNDERT: Diese Funktion füllt jetzt auch die Auto-Filter-Felder, wenn sie eine gespeicherte Suche lädt.
 window.applySavedSearch = function(event, searchData) {
     try {
+        // Standardfelder füllen
         document.getElementById('query').value = searchData.query || "";
-        const pagesInput = document.getElementById('pages');
-        if(pagesInput) pagesInput.value = searchData.pages || 10;
-        
-        const plzInput = document.getElementById('plz');
-        if(plzInput) plzInput.value = searchData.plz || "";
-        
-        const radiusSelect = document.getElementById('radius');
-        if(radiusSelect) radiusSelect.value = searchData.radius || "0";
-        
-        const minPriceInput = document.getElementById('minPrice');
-        if(minPriceInput) minPriceInput.value = searchData.min_price || "";
-        
-        const priceLimitInput = document.getElementById('priceLimit');
-        if(priceLimitInput) priceLimitInput.value = searchData.price_limit || "";
+        document.getElementById('pages').value = searchData.pages || 10;
+        document.getElementById('plz').value = searchData.plz || "";
+        document.getElementById('radius').value = searchData.radius || "0";
+        document.getElementById('minPrice').value = searchData.min_price || "";
+        document.getElementById('priceLimit').value = searchData.price_limit || "";
 
+        // Ausschlusswörter setzen
         userExcludeWords = new Set(searchData.exclude_words ? searchData.exclude_words.split(',') : defaultExcludeWords);
         renderExcludeWords();
 
+        // Kategorieauswahl anwenden
         if (searchData.category_id && searchData.category_slug) {
-            selectedCategoryId = searchData.category_id;
-            selectedCategorySlug = searchData.category_slug;
-            selectedCategoryName = searchData.category_name || searchData.category_slug; 
-            
-            const selectedCatNameText = document.getElementById('selectedCategoryNameText');
-            if(selectedCatNameText) selectedCatNameText.textContent = selectedCategoryName;
-            
-            const selectedCatContainer = document.getElementById('selectedCategoryContainer');
-            if(selectedCatContainer) selectedCatContainer.style.display = 'flex';
+            // Die selectCategory Funktion aufrufen, damit die UI (inkl. Auto-Filter Anzeige) korrekt aktualisiert wird
+            const categoryListItem = document.querySelector(`li[data-category-id="${searchData.category_id}"]`);
+            if (categoryListItem) {
+                selectCategory(categoryListItem);
+            }
         } else { 
             clearSelectedCategory(); 
         }
+
+        // HINZUGEFÜGT: Spezifische Auto-Filter füllen, falls vorhanden
+        if (searchData.category_slug === 'autos') {
+            document.getElementById('kmMin').value = searchData.km_min || "";
+            document.getElementById('kmMax').value = searchData.km_max || "";
+            document.getElementById('ezMin').value = searchData.ez_min || "";
+            document.getElementById('ezMax').value = searchData.ez_max || "";
+            document.getElementById('powerMin').value = searchData.power_min || "";
+            document.getElementById('powerMax').value = searchData.power_max || "";
+            document.getElementById('tuevMin').value = searchData.tuev_min || "";
+        }
+
         showUserMessage(`Suche "${searchData.search_name}" geladen.`, 'success');
         navigateToView('mainSearchView');
     } catch (e) { console.error("Fehler applySavedSearch:", e); showUserMessage("Fehler Laden Suchdaten.", "error"); }
@@ -646,9 +658,33 @@ window.fetchOffers = async function(auto = false) {
     if (!auto) disableAutoSearchControls();
 
     let fetchUrl = `/scrape?query=${encodeURIComponent(query)}&plz=${plz}&radius=${radius}&minPrice=${minPrice}&priceLimit=${priceLimit}&pages=${pages}&auto=${auto}&excludeWords=${encodeURIComponent(excludeWordsParam)}`;
+    
+    // Fügt die ausgewählte Kategorie hinzu
     if (selectedCategorySlug && selectedCategoryId) { 
         fetchUrl += `&categorySlug=${encodeURIComponent(selectedCategorySlug)}&categoryId=${encodeURIComponent(selectedCategoryId)}`; 
+        
+        // NEU: Hängt die spezifischen Auto-Filter an, wenn die Kategorie "autos" ist
+        if (selectedCategorySlug === 'autos') {
+            const carParams = {
+                kmMin: 'kmMin',
+                kmMax: 'kmMax',
+                ezMin: 'ezMin',
+                ezMax: 'ezMax',
+                powerMin: 'powerMin',
+                powerMax: 'powerMax',
+                tuevMin: 'tuevMin'
+            };
+
+            for (const paramName in carParams) {
+                const elementId = carParams[paramName];
+                const value = document.getElementById(elementId)?.value || "";
+                if (value) {
+                    fetchUrl += `&${paramName}=${encodeURIComponent(value)}`;
+                }
+            }
+        }
     }
+
     if (shouldSaveResults) { 
         fetchUrl += `&saveResults=true`; 
         if (scrapeSessName) { fetchUrl += `&sessionName=${encodeURIComponent(scrapeSessName)}`; }
@@ -746,6 +782,32 @@ window.cancelSearch = async function() {
     }
 };
 
+function selectCategory(element) {
+    // ... (dein bisheriger Code zum Setzen der Kategorie-Infos)
+    const categoryName = element.dataset.categoryName;
+    const categorySlug = element.dataset.categorySlug;
+    const categoryId = element.dataset.categoryId;
+
+    // Globale Variablen oder ein Objekt zum Speichern der Auswahl
+    window.selectedCategory = {
+        name: categoryName,
+        slug: categorySlug,
+        id: categoryId
+    };
+    
+    document.getElementById('selectedCategoryNameText').textContent = categoryName;
+    document.getElementById('selectedCategoryContainer').style.display = 'flex';
+    toggleCategoryMenu(); // Menü schließen
+
+    // NEU: Logik zum Ein-/Ausblenden der Auto-Filter
+    const carFilters = document.getElementById('car-specific-filters');
+    if (categorySlug === 'autos') {
+        carFilters.style.display = 'block'; // Anzeigen, wenn "Autos" ausgewählt ist
+    } else {
+        carFilters.style.display = 'none';  // Bei allen anderen Kategorien ausblenden
+    }
+}
+
 // --- UI Hilfsfunktionen und Menü-Funktionen ---
 function showLoader() { 
     const loader = document.getElementById('loader');
@@ -818,22 +880,53 @@ window.toggleSubmenu = function(el) {
         if(ic) el.classList.add('open');
     }
 };
-window.selectCategory = function(el) { 
-    selectedCategoryName=el.dataset.categoryName; 
-    selectedCategorySlug=el.dataset.categorySlug; 
-    selectedCategoryId=el.dataset.categoryId; 
-    const nTE=document.getElementById('selectedCategoryNameText'); 
-    const cE=document.getElementById('selectedCategoryContainer'); 
-    if(nTE)nTE.textContent=selectedCategoryName; 
-    if(cE)cE.style.display='flex'; 
+// --- KATEGORIE-FUNKTIONEN (KORRIGIERTE VERSION) ---
+
+/**
+ * Wählt eine Kategorie aus, setzt die globalen Variablen und blendet die
+ * spezifischen Auto-Filter bei Bedarf ein oder aus.
+ * @param {HTMLElement} element - Das angeklickte <li> Element der Kategorie.
+ */
+window.selectCategory = function(element) { 
+    // 1. Daten aus dem HTML-Element auslesen
+    selectedCategoryName = element.dataset.categoryName; 
+    selectedCategorySlug = element.dataset.categorySlug; 
+    selectedCategoryId = element.dataset.categoryId; 
+    
+    // 2. UI-Elemente für die Anzeige der Auswahl aktualisieren
+    const nameTextElement = document.getElementById('selectedCategoryNameText'); 
+    const containerElement = document.getElementById('selectedCategoryContainer'); 
+    if (nameTextElement) nameTextElement.textContent = selectedCategoryName; 
+    if (containerElement) containerElement.style.display = 'flex'; 
+    
+    // 3. Spezifische Auto-Filter ein- oder ausblenden
+    const carFilters = document.getElementById('car-specific-filters');
+    if (carFilters) { // Sicherstellen, dass das Element existiert
+        if (selectedCategorySlug === 'autos') {
+            carFilters.style.display = 'block'; // Anzeigen, wenn "Autos" ausgewählt ist
+        } else {
+            carFilters.style.display = 'none';  // Bei allen anderen Kategorien ausblenden
+        }
+    }
+    
+    // 4. Kategorien-Menü schließen
     toggleCategoryMenu();
 };
+
+/**
+ * Hebt die Auswahl der Kategorie auf und blendet die Auto-Filter wieder aus.
+ */
 window.clearSelectedCategory = function() {
-    selectedCategoryName=null;
-    selectedCategorySlug=null;
-    selectedCategoryId=null; 
-    const cE=document.getElementById('selectedCategoryContainer'); 
-    const nTE=document.getElementById('selectedCategoryNameText'); 
-    if(cE)cE.style.display='none'; 
-    if(nTE)nTE.textContent='';
-};
+    // Globale Variablen zurücksetzen
+    selectedCategoryName = null;
+    selectedCategorySlug = null;
+    selectedCategoryId = null;
+
+    // UI-Anzeige zurücksetzen
+    const container = document.getElementById('selectedCategoryContainer');
+    if (container) container.style.display = 'none';
+
+    // Sicherstellen, dass die Auto-Filter ausgeblendet werden
+    const carFilters = document.getElementById('car-specific-filters');
+    if (carFilters) carFilters.style.display = 'none';
+}

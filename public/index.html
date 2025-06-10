@@ -106,6 +106,30 @@
                      <input type="number" id="pages" placeholder="Seiten (max. 50)">
                      <input type="email" id="email" placeholder="E-Mail für Benachrichtigung (noch nicht aktiv)">
                  </div>
+                  <div id="car-specific-filters" style="display: none; border-top: 1px solid #ddd; margin-top: 15px; padding-top: 15px;">
+                    <h4><i class="fas fa-car"></i> Spezifische Auto-Filter</h4>
+                    <div class="input-group">
+                        <input type="number" id="kmMin" placeholder="Kilometerstand von">
+                        <input type="number" id="kmMax" placeholder="Kilometerstand bis">
+                    </div>
+                    <div class="input-group">
+                        <input type="number" id="ezMin" placeholder="Erstzulassung von (Jahr)">
+                        <input type="number" id="ezMax" placeholder="Erstzulassung bis (Jahr)">
+                    </div>
+                    <div class="input-group">
+                        <input type="number" id="powerMin" placeholder="Leistung von (PS)">
+                        <input type="number" id="powerMax" placeholder="Leistung bis (PS)">
+                    </div>
+                    <div class="input-group">
+                        <input type="number" id="tuevMin" placeholder="TÜV gültig bis (Jahr)">
+                    </div>
+                 </div>
+                 <div class="input-group auto-search-group">
+                     </div>
+                  <div class="input-group">
+                     </div>
+                 <section class="exclude-section">
+                     </section>
                  <div class="input-group auto-search-group">
                      <label class="auto-toggle-label">
                          <input type="checkbox" id="autoSearchToggle" onchange="toggleAutoSearch(this)">
