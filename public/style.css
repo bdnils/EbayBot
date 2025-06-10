@@ -1210,3 +1210,15 @@ body.locked > #appContainer { /* Nur den App-Container bluren, nicht das Overlay
     margin-left: auto;
     margin-right: auto;
 }
+.hidden {
+    display: none;
+}
+
+/* Diese Regeln animieren den kleinen Pfeil im Button */
+.toggle-filters-button .filter-arrow {
+    transition: transform 0.3s ease;
+}
+
+.toggle-filters-button.open .filter-arrow {
+    transform: rotate(180deg);
+}

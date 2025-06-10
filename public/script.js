@@ -233,6 +233,7 @@ function navigateToView(viewId) {
 
     if (viewId === 'dashboardView' && currentUserId) { 
         loadMonitoredSearches();
+        populateMonitorCategorySelect(); // <-- DIESE ZEILE HINZUFÜGEN
     } else if (viewId === 'inboxView' && currentUserId) {
         fetchNotificationsAndUpdateBadge(true);
     }
@@ -242,6 +243,7 @@ function navigateToView(viewId) {
     document.getElementById('categoryMenu')?.classList.remove('show');
     document.body.classList.remove('category-menu-open');
 }
+
 
 // --- Ausschlusswörter ---
 const defaultExcludeWords = [
@@ -450,10 +452,9 @@ window.deleteSavedSearch = async function(searchId) {
 // --- Dashboard: Überwachte Suchen ---
 window.addMonitoredSearch = async function() {
     if (!currentUserId) { showUserMessage("Bitte einloggen.", "error"); return; }
+    
     const searchNameInput = document.getElementById('monitorSearchName');
     const queryInput = document.getElementById('monitorQuery');
-    const plzInput = document.getElementById('monitorPlz');
-    const radiusSelect = document.getElementById('monitorRadius');
     
     const search_name = searchNameInput?.value.trim();
     const query = queryInput?.value.trim();
@@ -463,14 +464,38 @@ window.addMonitoredSearch = async function() {
         return;
     }
 
+    // Alle Parameter aus dem neuen, erweiterten Formular sammeln
     const query_params = {
         query: query,
-        plz: plzInput?.value.trim() || null,
-        radius: radiusSelect?.value || "0",
-        excludeWords: [...userExcludeWords].join(','),
-        pages: 2 
+        pages: 2, // Für überwachte Suchen reichen meist die ersten 2 Seiten
+        plz: document.getElementById('monitorPlz')?.value.trim() || null,
+        radius: document.getElementById('monitorRadius')?.value || "0",
+        minPrice: document.getElementById('monitorMinPrice')?.value || null,
+        priceLimit: document.getElementById('monitorPriceLimit')?.value || null,
+        excludeWords: [...userExcludeWords].join(','), // Exclude-Wörter bleiben global
     };
 
+    // Kategorie-Daten verarbeiten
+    const categorySelect = document.getElementById('monitorCategory');
+    const categoryValue = categorySelect.value;
+    if (categoryValue) {
+        const [slug, id, name] = categoryValue.split('|');
+        query_params.categorySlug = slug;
+        query_params.categoryId = id;
+        query_params.categoryName = name; // Nützlich für die Anzeige
+    }
+
+    // Auto-spezifische Daten verarbeiten, wenn Kategorie "autos" ist
+    if (query_params.categorySlug === 'autos') {
+        query_params.kmMin = document.getElementById('monitorKmMin')?.value || null;
+        query_params.kmMax = document.getElementById('monitorKmMax')?.value || null;
+        query_params.ezMin = document.getElementById('monitorEzMin')?.value || null;
+        query_params.ezMax = document.getElementById('monitorEzMax')?.value || null;
+        query_params.powerMin = document.getElementById('monitorPowerMin')?.value || null;
+        query_params.powerMax = document.getElementById('monitorPowerMax')?.value || null;
+        query_params.tuevMin = document.getElementById('monitorTuevMin')?.value || null;
+    }
+    
     try {
         const response = await fetch('/api/monitored-searches', {
             method: 'POST',
@@ -480,17 +505,19 @@ window.addMonitoredSearch = async function() {
         const data = await response.json();
         if (data.success) {
             showUserMessage(`Überwachung "${search_name}" hinzugefügt.`, "success");
-            if(searchNameInput) searchNameInput.value = '';
-            if(queryInput) queryInput.value = '';
-            if(plzInput) plzInput.value = '';
-            if(radiusSelect) radiusSelect.value = "0";
+            // Optional: Formularfelder zurücksetzen
+            document.getElementById('addMonitoredSearchSection').querySelectorAll('input, select').forEach(el => {
+                if(el.type === 'text' || el.type === 'number') el.value = '';
+                if(el.tagName === 'SELECT') el.selectedIndex = 0;
+            });
+            toggleMonitorCarFilters(categorySelect); // Auto-Filter wieder verstecken
             loadMonitoredSearches();
         } else {
-            showUserMessage(data.message || "Fehler Hinzufügen Überwachung.", "error");
+            showUserMessage(data.message || "Fehler beim Hinzufügen der Überwachung.", "error");
         }
     } catch (err) {
         console.error("Fehler addMonitoredSearch:", err);
-        showUserMessage("Netzwerkfehler Hinzufügen Überwachung.", "error");
+        showUserMessage("Netzwerkfehler beim Hinzufügen der Überwachung.", "error");
     }
 };
 
@@ -893,12 +920,23 @@ window.toggleAutoSearch = function(checkbox) {
         console.log("⛔ Client Auto-Suche gestoppt.");
     }
 };
-window.toggleFilters = function() { 
-    const f=document.getElementById('advanced-filters'); 
-    const b=document.querySelector('.toggle-filters-button'); 
-    if(!f||!b)return; 
-    f.classList.toggle('hidden'); 
-    b.classList.toggle('open');
+// Diese Funktion in script.js sicherstellen oder ersetzen
+window.toggleFilters = function(filterContainerId, buttonElement) {
+    // Zur Fehlersuche eine Nachricht in der Konsole ausgeben
+    console.log(`toggleFilters aufgerufen für die ID: ${filterContainerId}`);
+
+    const filterContainer = document.getElementById(filterContainerId);
+    
+    if (!filterContainer || !buttonElement) {
+        console.error("Debug: Filter-Container oder Button wurde nicht gefunden!", { containerId: filterContainerId, buttonExists: !!buttonElement });
+        return; 
+    }
+    
+    // Schaltet die Klasse 'hidden' für den Container an/aus
+    filterContainer.classList.toggle('hidden'); 
+    
+    // Schaltet die Klasse 'open' für den Button an/aus (für die Pfeil-Animation)
+    buttonElement.classList.toggle('open');
 };
 window.toggleCategoryMenu = function() { 
     const m=document.getElementById('categoryMenu'); 
@@ -974,4 +1012,30 @@ window.clearSelectedCategory = function() {
     // Sicherstellen, dass die Auto-Filter ausgeblendet werden
     const carFilters = document.getElementById('car-specific-filters');
     if (carFilters) carFilters.style.display = 'none';
+}
+function populateMonitorCategorySelect() {
+    const mainCategorySelect = document.getElementById('categoryMenu'); // Das Hauptmenü
+    const monitorCategorySelect = document.getElementById('monitorCategory');
+    if (!mainCategorySelect || !monitorCategorySelect) return;
+
+    monitorCategorySelect.innerHTML = '<option value="">Alle Kategorien</option>'; // Reset
+
+    const allCategories = mainCategorySelect.querySelectorAll('li[data-category-id]');
+    allCategories.forEach(catLi => {
+        const option = document.createElement('option');
+        const categoryData = catLi.dataset;
+        option.value = `${categoryData.categorySlug}|${categoryData.categoryId}|${categoryData.categoryName}`;
+        option.textContent = catLi.textContent;
+        monitorCategorySelect.appendChild(option);
+    });
+}
+function toggleMonitorCarFilters(selectElement) {
+    const carFilters = document.getElementById('monitor-car-specific-filters');
+    const selectedValue = selectElement.value;
+    
+    if (selectedValue && selectedValue.startsWith('autos|')) {
+        carFilters.style.display = 'block';
+    } else {
+        carFilters.style.display = 'none';
+    }
 }

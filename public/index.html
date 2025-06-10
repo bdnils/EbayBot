@@ -52,18 +52,67 @@
     <div id="dashboardView" class="view-container card" style="display:none;">
         <h2><i class="fas fa-tachometer-alt"></i> Dashboard für automatische Suchen</h2>
         <section id="addMonitoredSearchSection">
-            <h3>Neue automatische Suche hinzufügen</h3>
-            <div class="input-group">
-                <input type="text" id="monitorSearchName" placeholder="Name für diese Überwachung">
-                <input type="text" id="monitorQuery" placeholder="Suchbegriff (z.B. RTX 4070)">
-            </div>
-            <div class="input-group">
-                <input type="text" id="monitorPlz" placeholder="PLZ (optional)">
-                <select id="monitorRadius" class="radius-select-small"> <option value="0">Umkreis</option><option value="5">+5km</option><option value="200">+200km</option>
-                </select>
-            </div>
-             <button class="button-primary" onclick="addMonitoredSearch()">Überwachung hinzufügen</button>
-        </section>
+    <h3>Neue automatische Suche hinzufügen</h3>
+    
+    <div class="input-group">
+        <input type="text" id="monitorSearchName" placeholder="Name für diese Überwachung (z.B. 'BMW E39 unter 5000€')">
+        <input type="text" id="monitorQuery" placeholder="Suchbegriff (z.B. 540i)">
+    </div>
+
+    <div class="input-group">
+        <input type="text" id="monitorPlz" placeholder="PLZ (optional)">
+        <div class="select-wrapper">
+            <select id="monitorRadius">
+                <option value="0">Umkreis</option>
+                <option value="5">+5 km</option>
+                <option value="10">+10 km</option>
+                <option value="20">+20 km</option>
+                <option value="50">+50 km</option>
+                <option value="100">+100 km</option>
+                <option value="150">+150 km</option>
+                <option value="200">+200 km</option>
+            </select>
+        </div>
+        <div class="select-wrapper">
+             <select id="monitorCategory" onchange="toggleMonitorCarFilters(this)">
+                <option value="">Alle Kategorien</option>
+            </select>
+        </div>
+    </div>
+    
+    <button class="toggle-filters-button" onclick="toggleFilters('monitor-advanced-filters', this)">
+    <i class="fas fa-filter"></i> Erweiterte Filter <span class="filter-arrow"><i class="fas fa-chevron-down"></i></span>
+</button>
+
+    <div id="monitor-advanced-filters" class="hidden" style="border-top: 1px solid var(--border-color-light); margin-top: 15px; padding-top: 15px;">
+        <div class="input-group">
+            <input type="number" id="monitorMinPrice" placeholder="Min Preis">
+            <input type="number" id="monitorPriceLimit" placeholder="Max Preis">
+        </div>
+
+        <div id="monitor-car-specific-filters" style="display: none; border-top: 1px solid var(--border-color-light); margin-top: 15px; padding-top: 15px;">
+           <h4><i class="fas fa-car"></i> Spezifische Auto-Filter</h4>
+           <div class="input-group">
+               <input type="number" id="monitorKmMin" placeholder="Kilometerstand von">
+               <input type="number" id="monitorKmMax" placeholder="Kilometerstand bis">
+           </div>
+           <div class="input-group">
+               <input type="number" id="monitorEzMin" placeholder="Erstzulassung von (Jahr)">
+               <input type="number" id="monitorEzMax" placeholder="Erstzulassung bis (Jahr)">
+           </div>
+           <div class="input-group">
+               <input type="number" id="monitorPowerMin" placeholder="Leistung von (PS)">
+               <input type="number" id="monitorPowerMax" placeholder="Leistung bis (PS)">
+           </div>
+           <div class="input-group">
+               <input type="number" id="monitorTuevMin" placeholder="TÜV gültig bis (Jahr)">
+           </div>
+        </div>
+
+    </div>
+    <div class="form-actions">
+         <button class="button-primary" onclick="addMonitoredSearch()">Überwachung hinzufügen</button>
+    </div>
         <section id="activeMonitoredSearchesSection">
             <h3>Aktive Überwachungen</h3>
             <ul id="monitoredSearchesList">
