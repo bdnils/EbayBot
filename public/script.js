@@ -349,6 +349,51 @@ window.saveCurrentSearch = async function() {
 };
 
 // ... die Funktion loadSavedSearches bleibt unverändert ...
+async function loadSavedSearches() {
+    if (!currentUserId) return;
+    const listElement = document.getElementById('savedSearchesList');
+    const sectionElement = document.getElementById('savedSearchesSection');
+    const noSearchesMsg = document.getElementById('noSavedSearches');
+    if (!listElement || !sectionElement || !noSearchesMsg) return;
+
+    try {
+        console.log("Lade gespeicherte Suchen vom Server..."); // Test-Log
+        const response = await fetch('/api/saved-searches');
+        if (!response.ok) {
+            throw new Error(`HTTP-Fehler! Status: ${response.status}`);
+        }
+        const data = await response.json();
+        listElement.innerHTML = ''; 
+
+        if (data.success && data.searches.length > 0) {
+            sectionElement.style.display = 'block';
+            noSearchesMsg.style.display = 'none';
+            data.searches.forEach(search => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span class="search-name">${search.search_name}</span>
+                    <small>(Gespeichert: ${new Date(search.created_at).toLocaleDateString('de-DE')})</small>
+                    <div class="search-actions">
+                        <button class="load-search-btn" title="Diese Suche laden"><i class="fas fa-upload"></i> Laden</button>
+                        <button class="delete-search-btn" title="Diese Suche löschen"><i class="fas fa-trash"></i> Löschen</button>
+                    </div>`;
+                li.querySelector('.load-search-btn').addEventListener('click', (event) => applySavedSearch(event, search));
+                li.querySelector('.delete-search-btn').addEventListener('click', () => deleteSavedSearch(search.id));
+                listElement.appendChild(li);
+            });
+        } else if (data.success && data.searches.length === 0) {
+            sectionElement.style.display = 'block';
+            noSearchesMsg.style.display = 'block';
+        } else {
+            showUserMessage(data.message || "Gespeicherte Suchen konnten nicht geladen werden.", "error");
+            sectionElement.style.display = 'none';
+        }
+    } catch (err) {
+        console.error("Fehler in loadSavedSearches:", err);
+        showUserMessage("Netzwerkfehler beim Laden der Suchen.", "error");
+        if (sectionElement) sectionElement.style.display = 'none';
+    }
+}
 
 // GEÄNDERT: Diese Funktion füllt jetzt auch die Auto-Filter-Felder, wenn sie eine gespeicherte Suche lädt.
 window.applySavedSearch = function(event, searchData) {

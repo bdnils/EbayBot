@@ -87,90 +87,77 @@ app.get('/api/auth-status', (req, res) => {
 
 // GEÄNDERT: Nimmt jetzt die neuen Auto-Filter entgegen und speichert sie.
 // GEÄNDERT: Stellt sicher, dass keine 'undefined' Werte an die Datenbank übergeben werden.
+
+// --- Endpunkte zum Speichern und Laden von (manuellen) Suchen ---
+
 app.post('/api/saved-searches', ensureAuthenticated, async (req, res) => {
+    console.log("--- POST /api/saved-searches ---"); // NEU
+    console.log("Schritt 1: Anfrage zum Speichern erhalten."); // NEU
     const { userId } = req.session;
     
     const {
-        search_name, query, pages, plz, radius,
-        exclude_words, min_price, price_limit,
-        category_slug, category_id, category_name,
-        km_min, km_max, ez_min, ez_max, power_min, power_max, tuev_min
+        search_name, query, pages, plz, radius, exclude_words, min_price, 
+        price_limit, category_slug, category_id, category_name, km_min, 
+        km_max, ez_min, ez_max, power_min, power_max, tuev_min
     } = req.body;
 
     if (!search_name) {
+        console.log("Fehler: Suchname fehlt."); // NEU
         return res.status(400).json({ success: false, message: 'Suchname ist erforderlich.' });
     }
 
     try {
         const sql = `
             INSERT INTO saved_searches (
-                user_id, search_name, query, pages, plz, radius, 
-                exclude_words, min_price, price_limit, category_slug, 
-                category_id, category_name, km_min, km_max, ez_min, ez_max, 
-                power_min, power_max, tuev_min
+                user_id, search_name, query, pages, plz, radius, exclude_words, min_price, 
+                price_limit, category_slug, category_id, category_name, km_min, km_max, 
+                ez_min, ez_max, power_min, power_max, tuev_min
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
-        
-        // KORREKTUR: Hier stellen wir sicher, dass alle potenziell fehlenden Werte
-        // als 'null' an die Datenbank übergeben werden, anstatt 'undefined'.
         const values = [
-            userId, 
-            search_name, 
-            query, 
-            pages, 
-            plz, 
-            radius, 
-            exclude_words, 
-            min_price, 
-            price_limit, 
-            category_slug, 
-            category_id, 
-            category_name, 
-            km_min || null, 
-            km_max || null, 
-            ez_min || null, 
-            ez_max || null, 
-            power_min || null, 
-            power_max || null, 
-            tuev_min || null
+            userId, search_name, query, pages, plz, radius, exclude_words, min_price || null,
+            price_limit || null, category_slug || null, category_id || null, category_name || null,
+            km_min || null, km_max || null, ez_min || null, ez_max || null,
+            power_min || null, power_max || null, tuev_min || null
         ];
 
+        console.log("Schritt 2: Führe jetzt die Datenbank-Abfrage zum Speichern aus..."); // NEU
         const [result] = await db.execute(sql, values);
+        console.log("Schritt 3: Datenbank-Abfrage erfolgreich ausgeführt!"); // NEU
         
         res.status(201).json({ success: true, message: 'Suche gespeichert.', searchId: result.insertId });
 
     } catch (error) {
-        // Dieser Block wurde durch den Fehler ausgelöst
-        console.error('Fehler beim Speichern der Suche:', error);
-        res.status(500).json({ success: false, message: 'Fehler beim Speichern der Suche.' });
+        console.error('!!! Schwerer Fehler beim Speichern der Suche:', error); // NEU
+        res.status(500).json({ success: false, message: 'Serverfehler beim Speichern der Suche.' });
     }
 });
 
-// GEÄNDERT: Liest jetzt auch die neuen Auto-Filter aus der Datenbank aus.
 app.get('/api/saved-searches', ensureAuthenticated, async (req, res) => {
+    console.log("--- GET /api/saved-searches ---"); // NEU
+    console.log("Schritt 1: Anfrage zum Laden der Liste erhalten."); // NEU
     const { userId } = req.session;
     try {
-        // HINZUGEFÜGT: Das SELECT-Statement um die neuen Spalten erweitert.
         const sql = `
             SELECT 
-                id, search_name, query, pages, plz, radius, 
-                exclude_words, min_price, price_limit, category_slug, 
-                category_id, category_name, created_at,
+                id, search_name, query, pages, plz, radius, exclude_words, min_price, 
+                price_limit, category_slug, category_id, category_name, created_at,
                 km_min, km_max, ez_min, ez_max, power_min, power_max, tuev_min
             FROM saved_searches 
             WHERE user_id = ? 
             ORDER BY created_at DESC
         `;
         
+        console.log("Schritt 2: Führe jetzt die Datenbank-Abfrage zum Laden aus..."); // NEU
         const [searches] = await db.execute(sql, [userId]);
+        console.log(`Schritt 3: Datenbank-Abfrage erfolgreich! ${searches.length} Suchen gefunden.`); // NEU
         
         res.json({ success: true, searches });
     } catch (error) {
-        console.error('Fehler beim Laden der Suchen:', error);
+        console.error('!!! Schwerer Fehler beim Laden der Suchen:', error); // NEU
         res.status(500).json({ success: false, message: 'Fehler beim Laden der Suchen.' });
     }
 });
-
 // UNVERÄNDERT: Dieser Endpunkt bleibt gleich.
 app.delete('/api/saved-searches/:id', ensureAuthenticated, async (req, res) => {
     const { userId } = req.session;
