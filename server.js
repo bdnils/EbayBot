@@ -7,7 +7,38 @@ const crypto = require('crypto'); // Für URL-Hashing
 const app = express();
 const PORT = 3000;
 const db = require('./db'); // Stelle sicher, dass db.js korrekt konfiguriert ist
+// In server.js, am Anfang der Datei
+const nodemailer = require('nodemailer');
 
+// Konfiguration für den E-Mail-Versand
+const transporter = nodemailer.createTransport({
+    host: "smtp.sendgrid.net", // z.B. "smtp.gmail.com"
+    port: 587, // oder 465 für SSL
+    secure: false, // true für port 465, false für andere
+    auth: {
+        user: "apikey", // Deine E-Mail-Adresse
+        pass: "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", // Dein Passwort
+    },
+});
+
+// Globale Funktion zum Senden von E-Mails
+async function sendEmailNotification(recipientEmail, subject, htmlContent) {
+    if (!recipientEmail) {
+        console.log("E-Mail-Versand übersprungen: Keine Empfänger-E-Mail angegeben.");
+        return;
+    }
+    try {
+        let info = await transporter.sendMail({
+            from: '"nexoboy55@gmail.com',
+            to: recipientEmail,
+            subject: subject,
+            html: htmlContent,
+        });
+        console.log("E-Mail erfolgreich gesendet an:", recipientEmail, "Message ID:", info.messageId);
+    } catch (error) {
+        console.error("Fehler beim Senden der E-Mail an", recipientEmail, ":", error);
+    }
+}
 app.use(express.json());
 app.use(session({
     secret: 'DeinSuperGeheimesSessionGeheimnis123!', // ÄNDERE DIES IN EINEN LANGEN, ZUFÄLLIGEN STRING!
@@ -348,20 +379,23 @@ function isGraphicCardOffer(title) {
 }
 
 // Die Haupt-Scraping-Funktion, jetzt modularer für Cronjobs
-async function performScrape(scrapeParams, userIdForNotification = null, monitoredSearchIdForNotification = null) {
-    console.log(`Starte Scrape mit Parametern:`, scrapeParams, `Für UserNotification: ${userIdForNotification}, MonitorID: ${monitoredSearchIdForNotification}`);
+// In server.js
 
-    // GEÄNDERT: Neue Parameter für die Autosuche hinzugefügt
+async function performScrape(scrapeParams, userForNotification = null, monitoredSearchIdForNotification = null) {
+    // KORREKTUR: Verwendet userForNotification?.id für eine saubere Log-Ausgabe
+    console.log(`Starte Scrape mit Parametern:`, scrapeParams, `Für UserNotification: ${userForNotification?.id}, MonitorID: ${monitoredSearchIdForNotification}`);
+
     const {
         query = "grafikkarte", pages = 1, plz, radius,
-        minPrice, priceLimit, excludeWords: rawExcludes = '', // rawExcludes ist ein String
-        categoryId, categorySlug,
-        // NEU: Spezifische Parameter für die Kategorie "Autos"
-        kmMin, kmMax, ezMin, ezMax, powerMin, powerMax, tuevMin
+        minPrice, priceLimit, excludeWords: rawExcludes = '',
+        categoryId, categorySlug, kmMin, kmMax, ezMin, ezMax, powerMin, powerMax, tuevMin
     } = scrapeParams;
 
     const searchQuery = query.trim().replace(/\s+/g, '-');
-    const pagesToScrape = userIdForNotification ? Math.min(parseInt(pages) || 1, 2) : Math.min(parseInt(pages) || 10, 50);
+    
+    // KORREKTUR: Hier wird jetzt geprüft, ob das userForNotification-Objekt existiert
+    const pagesToScrape = userForNotification ? Math.min(parseInt(pages) || 1, 2) : Math.min(parseInt(pages) || 10, 50);
+    
     const excludedWordsArray = typeof rawExcludes === 'string' ? rawExcludes.split(',').map(w => w.trim().toLowerCase()).filter(Boolean) : [];
     
     let ortId = null;
@@ -376,43 +410,22 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
     else if (minPrice != null) preisSegment = `/preis:${minPrice}:`;
     else if (priceLimit != null) preisSegment = `/preis::${priceLimit}`;
 
-    // NEU: Segment für die Auto-Parameter erstellen
     let carParamsSegment = '';
     if (categorySlug === 'autos') {
         const carParams = [];
-        // Kilometerstand (km_i)
-        if (kmMin || kmMax) {
-            carParams.push(`autos.km_i:${kmMin || ''},${kmMax || ''}`);
-        }
-        // Erstzulassung (ez_i)
-        if (ezMin || ezMax) {
-            carParams.push(`autos.ez_i:${ezMin || ''},${ezMax || ''}`);
-        }
-        // Leistung (power_i)
-        if (powerMin || powerMax) {
-            carParams.push(`autos.power_i:${powerMin || ''},${powerMax || ''}`);
-        }
-        // TÜV Jahr (tuevy_i) - hat oft nur einen Mindestwert
-        if (tuevMin) {
-            carParams.push(`autos.tuevy_i:${tuevMin},`);
-        }
-
-        if (carParams.length > 0) {
-            // Das Segment wird mit '+' an die Kategorie-ID angehängt
-            carParamsSegment = '+' + carParams.join('+');
-        }
+        if (kmMin || kmMax) carParams.push(`autos.km_i:${kmMin || ''},${kmMax || ''}`);
+        if (ezMin || ezMax) carParams.push(`autos.ez_i:${ezMin || ''},${ezMax || ''}`);
+        if (powerMin || powerMax) carParams.push(`autos.power_i:${powerMin || ''},${powerMax || ''}`);
+        if (tuevMin) carParams.push(`autos.tuevy_i:${tuevMin},`);
+        if (carParams.length > 0) carParamsSegment = '+' + carParams.join('+');
     }
-
 
     let allScrapedOffers = [];
     let browser = null;
 
     try {
         browser = await chromium.launch({ headless: true });
-        const context = await browser.newContext({
-             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/124.0.0.0 Safari/537.36',
-             javaScriptEnabled: true,
-        });
+        const context = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, wie Gecko) Chrome/124.0.0.0 Safari/537.36', javaScriptEnabled: true });
         const page = await context.newPage();
 
         for (let pageNum = 1; pageNum <= pagesToScrape; pageNum++) {
@@ -423,13 +436,9 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
                 if (pageNum > 1) currentUrlPath += `/seite:${pageNum}`;
                 if (preisSegment) currentUrlPath += preisSegment;
                 currentUrlPath += `/${searchQuery}`;
-                
-                // GEÄNDERT: Das neue Auto-Parameter-Segment hier anhängen
-                currentUrlPath += `/k0c${categoryId}${carParamsSegment}`; // z.B. /k0c216+autos.km_i:10000,150000
-
+                currentUrlPath += `/k0c${categoryId}${carParamsSegment}`;
                 if (ortId) { currentUrlPath += `l${ortId}`; if (radius) currentUrlPath += `r${radius}`; }
             } else {
-                // ... (Legacy-Pfad ohne Kategorie, bleibt unverändert)
                 let legacyPath = "";
                 if (plz && ortId) legacyPath += plz;
                 if (pageNum > 1) { if (legacyPath.length > 0) legacyPath += "/"; legacyPath += `seite:${pageNum}`; }
@@ -443,13 +452,13 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
             
             console.log(`(PerformScrape) Lade Seite ${pageNum}: ${finalUrl}`);
             try {
-                await page.goto(finalUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }); // Timeout erhöht
+                await page.goto(finalUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
             } catch(e) {
                 console.error(`Fehler beim Laden von ${finalUrl} auf Seite ${pageNum}: ${e.message}`);
-                if(pageNum === 1 && e.message.includes('timeout')) throw e; // Bei Timeout auf erster Seite abbrechen
-                continue; // Bei Fehler auf Folgeseiten überspringen
+                if(pageNum === 1 && e.message.includes('timeout')) throw e;
+                continue;
             }
-            await page.waitForTimeout(2500 + Math.random() * 2000); // Längere, variablere Wartezeit
+            await page.waitForTimeout(2500 + Math.random() * 2000);
 
             const offersOnPage = await page.evaluate(() => {
                 const cards = document.querySelectorAll('article.aditem');
@@ -459,12 +468,11 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
                     const title = titleElement?.innerText?.trim() ?? "";
                     const href = titleElement?.getAttribute('href') ?? "";
                     const itemUrl = href.startsWith("http") ? href : (href ? 'https://www.kleinanzeigen.de' + href : "");
-                    
                     if (title && itemUrl) {
                         const location = card.querySelector('.aditem-main--top')?.innerText?.trim() ?? "";
                         const middleText = card.querySelector('.aditem-main--middle')?.innerText?.trim() ?? "";
-                        const imageElement = card.querySelector('.imagebox img'); // Genauerer Selektor für Bild
-                        const image = imageElement?.getAttribute('src') ?? imageElement?.dataset.imgsrc ?? ""; // Auch data-imgsrc prüfen
+                        const imageElement = card.querySelector('.imagebox img');
+                        const image = imageElement?.getAttribute('src') ?? imageElement?.dataset.imgsrc ?? "";
                         list.push({ title, middleText, location, url: itemUrl, image });
                     }
                 });
@@ -472,12 +480,13 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
             });
             if (offersOnPage.length === 0 && pageNum > 1) break;
             allScrapedOffers.push(...offersOnPage);
-            if (offersOnPage.length < 20 && pageNum > 1 && !userIdForNotification) break; // Bei manuellen Suchen früher abbrechen, wenn wenig Ergebnisse
-            if (userIdForNotification && offersOnPage.length === 0 && pageNum === 1) break; // Für Cron: Wenn erste Seite leer, abbrechen
+            
+            // KORREKTUR: Hier wird jetzt geprüft, ob das userForNotification-Objekt existiert
+            if (userForNotification && offersOnPage.length < 20 && pageNum > 1) break;
+            if (userForNotification && offersOnPage.length === 0 && pageNum === 1) break;
         }
     } catch(error) {
         console.error(`(PerformScrape) Schwerer Fehler während des Playwright-Vorgangs: ${error.message}`);
-        // Werfe den Fehler weiter, damit er im aufrufenden Kontext (Cronjob oder /scrape Route) behandelt wird
         throw error;
     } finally {
         if (browser) {
@@ -500,7 +509,7 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
             return { title: offer.title, price: price ?? 0, priceType: price || price===0 ? priceType : "unbekannt", location: offer.location, url: offer.url, image: offer.image };
         });
 
-    if (userIdForNotification && monitoredSearchIdForNotification) {
+    if (userForNotification && monitoredSearchIdForNotification) {
         let newFoundOffersForNotification = [];
         for (const offer of processedOffers) {
             const urlHash = crypto.createHash('sha256').update(offer.url).digest('hex');
@@ -513,26 +522,81 @@ async function performScrape(scrapeParams, userIdForNotification = null, monitor
                     newFoundOffersForNotification.push(offer);
                 }
             } catch (e) {
-                if (e.code === 'ER_DUP_ENTRY') { /* Ist bereits gesehen */ }
-                else { console.error("DB Fehler beim Prüfen/Einfügen in seen_monitored_offers:", e); }
+                if (e.code !== 'ER_DUP_ENTRY') console.error("DB Fehler bei seen_monitored_offers:", e);
             }
         }
 
         if (newFoundOffersForNotification.length > 0) {
-            console.log(`${newFoundOffersForNotification.length} neue Angebote für überwachte Suche ID ${monitoredSearchIdForNotification} (User ${userIdForNotification}) gefunden.`);
+            console.log(`${newFoundOffersForNotification.length} neue Angebote für überwachte Suche ID ${monitoredSearchIdForNotification} (User ${userForNotification.id}) gefunden.`);
+            
+            let emailHtml = `<h1>Neue Angebote für deine Suche "${scrapeParams.search_name}"</h1><ul>`;
+            
             for (const newOffer of newFoundOffersForNotification) {
                 try {
                     await db.execute(
                         'INSERT INTO notifications (user_id, monitored_search_id, offer_title, offer_url, offer_price) VALUES (?, ?, ?, ?, ?)',
-                        [userIdForNotification, monitoredSearchIdForNotification, newOffer.title.substring(0,254), newOffer.url, `${newOffer.price} ${newOffer.priceType}`.substring(0,99)]
+                        [userForNotification.id, monitoredSearchIdForNotification, newOffer.title.substring(0, 254), newOffer.url, `${newOffer.price} ${newOffer.priceType}`.substring(0, 99)]
                     );
+                    emailHtml += `<li><a href="${newOffer.url}" target="_blank">${newOffer.title}</a> - <strong>${newOffer.price > 0 ? newOffer.price + '€' : 'VB'}</strong></li>`;
                 } catch (e) { console.error("DB Fehler beim Erstellen der Notification:", e); }
+            }
+            emailHtml += `</ul>`;
+            
+            if (scrapeParams.last_checked_at) {
+                await sendEmailNotification(
+                    userForNotification.email, 
+                    `Neue Angebote gefunden: ${scrapeParams.search_name}`, 
+                    emailHtml
+                );
+            } else {
+                console.log(`Erster Check für Suche ID ${monitoredSearchIdForNotification}, keine E-Mail-Benachrichtigung gesendet.`);
             }
         }
         await db.execute('UPDATE monitored_searches SET last_checked_at = CURRENT_TIMESTAMP, last_found_count = ? WHERE id = ?', [processedOffers.length, monitoredSearchIdForNotification]);
     }
     return processedOffers;
 }
+
+// In server.js
+
+// NEU: Endpunkt zum Abrufen der Benutzerprofildaten
+app.get('/api/profile', ensureAuthenticated, async (req, res) => {
+    try {
+        const [users] = await db.execute(
+            'SELECT username, role, email, telegram_user FROM users WHERE id = ?',
+            [req.session.userId]
+        );
+        if (users.length > 0) {
+            res.json({ success: true, profile: users[0] });
+        } else {
+            res.status(404).json({ success: false, message: 'Benutzer nicht gefunden.' });
+        }
+    } catch (error) {
+        console.error('Fehler beim Laden des Profils:', error);
+        res.status(500).json({ success: false, message: 'Serverfehler beim Laden des Profils.' });
+    }
+});
+
+// NEU: Endpunkt zum Speichern der Benutzerprofildaten
+app.post('/api/profile', ensureAuthenticated, async (req, res) => {
+    const { email, telegramUser } = req.body;
+
+    // Einfache Validierung
+    if (typeof email !== 'string' || typeof telegramUser !== 'string') {
+        return res.status(400).json({ success: false, message: 'Ungültige Daten.' });
+    }
+
+    try {
+        await db.execute(
+            'UPDATE users SET email = ?, telegram_user = ? WHERE id = ?',
+            [email, telegramUser, req.session.userId]
+        );
+        res.json({ success: true, message: 'Profil erfolgreich gespeichert!' });
+    } catch (error) {
+        console.error('Fehler beim Speichern des Profils:', error);
+        res.status(500).json({ success: false, message: 'Serverfehler beim Speichern des Profils.' });
+    }
+});
 
 
 // Angepasster /scrape Endpunkt
@@ -619,17 +683,28 @@ app.post('/cancel', ensureAuthenticated, (req, res) => {
 });
 
 
+// In server.js
+
 // --- Cronjob für überwachte Suchen ---
-cron.schedule('*/10 * * * *', async () => { // Alle 10 Minuten
+// In server.js
+
+// KORRIGIERTER Cronjob-Block
+cron.schedule('*/10 * * * *', async () => {
     console.log('⏰ Cronjob: Starte Überprüfung überwachter Suchen...');
     let activeMonitors = [];
     try {
-        [activeMonitors] = await db.execute( // Destrukturierung des Ergebnisses
-            'SELECT * FROM monitored_searches WHERE is_active = TRUE'
-        );
+        const query = `
+            SELECT 
+                ms.id, ms.user_id, ms.search_name, ms.query_params, ms.last_checked_at,
+                u.email, u.telegram_user
+            FROM monitored_searches ms
+            JOIN users u ON ms.user_id = u.id
+            WHERE ms.is_active = TRUE
+        `;
+        [activeMonitors] = await db.execute(query);
     } catch (dbError) {
         console.error('⏰ Cronjob: Fehler beim Abrufen aktiver Monitore aus DB:', dbError);
-        return; // Breche diesen Cron-Lauf ab, wenn DB nicht erreichbar
+        return;
     }
 
     if (activeMonitors.length === 0) {
@@ -640,32 +715,32 @@ cron.schedule('*/10 * * * *', async () => { // Alle 10 Minuten
     console.log(`⏰ Cronjob: ${activeMonitors.length} aktive Überwachung(en) gefunden.`);
 
     for (const monitor of activeMonitors) {
-        console.log(`⏰ Cronjob: Verarbeite Überwachung ID ${monitor.id} für User ID ${monitor.user_id} (Name: ${monitor.search_name})`);
+        console.log(`⏰ Cronjob: Verarbeite Überwachung ID ${monitor.id} für User ID ${monitor.user_id}`);
         try {
-            let queryParams = {};
-            try {
-                queryParams = JSON.parse(monitor.query_params);
-            } catch (parseError) {
-                console.error(`⏰ Cronjob: Fehler beim Parsen von query_params für Monitor ID ${monitor.id}: ${monitor.query_params}. Überspringe diesen Monitor.`, parseError);
-                await db.execute('UPDATE monitored_searches SET last_checked_at = CURRENT_TIMESTAMP, is_active = FALSE WHERE id = ?', [monitor.id]); // Deaktiviere fehlerhaften Monitor
-                continue; // Nächster Monitor
-            }
+            let queryParams = JSON.parse(monitor.query_params);
             
-            await performScrape(queryParams, monitor.user_id, monitor.id);
+            // Füge die zusätzlichen Infos für die E-Mail zu den scrapeParams hinzu
+            queryParams.search_name = monitor.search_name;
+            queryParams.last_checked_at = monitor.last_checked_at;
+
+            const userForNotification = {
+                id: monitor.user_id,
+                email: monitor.email,
+                telegram_user: monitor.telegram_user
+            };
+            
+            await performScrape(queryParams, userForNotification, monitor.id);
             console.log(`⏰ Cronjob: Überwachung ID ${monitor.id} erfolgreich abgeschlossen.`);
 
         } catch (scrapeError) {
             console.error(`⏰ Cronjob: Fehler bei der Ausführung von Überwachung ID ${monitor.id}: ${scrapeError.message}.`);
-            // Update last_checked_at auch bei Fehler, um nicht sofort wieder zu versuchen
             try {
                 await db.execute('UPDATE monitored_searches SET last_checked_at = CURRENT_TIMESTAMP WHERE id = ?', [monitor.id]);
             } catch (updateError) {
-                console.error(`⏰ Cronjob: Fehler beim Aktualisieren von last_checked_at für Monitor ID ${monitor.id} nach Fehler:`, updateError);
+                console.error(`⏰ Cronjob: Fehler beim Aktualisieren von last_checked_at nach Fehler:`, updateError);
             }
         }
-        // Kurze Pause zwischen den einzelnen überwachten Suchen, um nicht zu aggressiv zu sein
-        console.log(`⏰ Cronjob: Kurze Pause nach Monitor ID ${monitor.id}...`);
-        await new Promise(resolve => setTimeout(resolve, 20000 + Math.random() * 10000)); // 20-30 Sekunden Pause
+        await new Promise(resolve => setTimeout(resolve, 20000 + Math.random() * 10000));
     }
     console.log('⏰ Cronjob: Alle aktiven Überwachungen für diesen Zyklus verarbeitet.');
 });

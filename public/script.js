@@ -45,6 +45,15 @@ window.addEventListener('DOMContentLoaded', async () => {
             navigateToView('dashboardView');
         });
     }
+    const profileLink = document.getElementById('openProfileLink');
+if (profileLink) {
+    profileLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateToView('profileView');
+    });
+
+    
+}
     document.addEventListener('click', handleClickOutside);
 });
 
@@ -225,19 +234,24 @@ function handleClickOutside(event) {
 
 // --- Navigation / Ansichten-Management ---
 function navigateToView(viewId) {
-    const views = ['mainSearchView', 'dashboardView', 'inboxView'];
+    // 'profileView' zur Liste der Ansichten hinzufügen
+    const views = ['mainSearchView', 'dashboardView', 'inboxView', 'profileView']; 
     views.forEach(id => {
         const view = document.getElementById(id);
         if (view) view.style.display = (id === viewId) ? 'block' : 'none';
     });
 
+    // Logik für das Anzeigen der jeweiligen Ansicht
     if (viewId === 'dashboardView' && currentUserId) { 
         loadMonitoredSearches();
-        populateMonitorCategorySelect(); // <-- DIESE ZEILE HINZUFÜGEN
+        populateMonitorCategorySelect();
     } else if (viewId === 'inboxView' && currentUserId) {
         fetchNotificationsAndUpdateBadge(true);
+    } else if (viewId === 'profileView' && currentUserId) { // NEU: Profil-Logik
+        loadProfileData();
     }
 
+    // Dropdowns nach Navigation schließen
     document.getElementById('profileDropdownMenu')?.classList.remove('show');
     document.querySelector('#userProfileButton .profile-arrow')?.classList.remove('open');
     document.getElementById('categoryMenu')?.classList.remove('show');
@@ -1037,5 +1051,46 @@ function toggleMonitorCarFilters(selectElement) {
         carFilters.style.display = 'block';
     } else {
         carFilters.style.display = 'none';
+    }
+}
+// In script.js
+
+async function loadProfileData() {
+    try {
+        const response = await fetch('/api/profile');
+        if (!response.ok) {
+            showUserMessage('Profildaten konnten nicht geladen werden.', 'error');
+            return;
+        }
+        const data = await response.json();
+        if (data.success) {
+            document.getElementById('profileUsername').textContent = data.profile.username || '';
+            document.getElementById('profileRole').textContent = data.profile.role || 'user';
+            document.getElementById('profileEmail').value = data.profile.email || '';
+            document.getElementById('profileTelegram').value = data.profile.telegram_user || '';
+        } else {
+            showUserMessage(data.message, 'error');
+        }
+    } catch (err) {
+        console.error("Fehler beim Laden der Profildaten:", err);
+        showUserMessage("Netzwerkfehler beim Laden des Profils.", "error");
+    }
+}
+
+async function saveProfile() {
+    const email = document.getElementById('profileEmail').value;
+    const telegramUser = document.getElementById('profileTelegram').value;
+
+    try {
+        const response = await fetch('/api/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, telegramUser })
+        });
+        const data = await response.json();
+        showUserMessage(data.message, data.success ? 'success' : 'error');
+    } catch (err) {
+        console.error("Fehler beim Speichern des Profils:", err);
+        showUserMessage("Netzwerkfehler beim Speichern des Profils.", "error");
     }
 }

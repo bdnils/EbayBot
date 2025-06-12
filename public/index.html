@@ -38,6 +38,7 @@
                     </div>
                     <div id="profileDropdownMenu" class="profile-dropdown-menu">
                         <a href="dashboard.html" id="openDashboardLink">Dashboard</a>
+                        <a href="#" id="openProfileLink">Profil</a> 
                         <a href="#" onclick="logoutUser()">Abmelden</a>
                     </div>
                 </div>
@@ -129,6 +130,34 @@
         <button class="button-secondary" onclick="markAllNotificationsAsRead()">Alle als gelesen markieren</button>
     </div>
 
+    </div>
+
+<div id="profileView" class="view-container card" style="display:none;">
+    <h2><i class="fas fa-user-cog"></i> Dein Profil</h2>
+    <section id="profile-details">
+        <p><strong>Benutzername:</strong> <span id="profileUsername"></span></p>
+        <p><strong>Rolle:</strong> <span id="profileRole"></span></p>
+    </section>
+    <hr class="form-divider">
+    <section id="profile-edit-form">
+        <h3>Kontaktdaten für Benachrichtigungen</h3>
+        <div class="input-group-column">
+            <label for="profileEmail">E-Mail-Adresse</label>
+            <input type="email" id="profileEmail" placeholder="deine-email@example.com">
+        </div>
+        <div class="input-group-column">
+            <label for="profileTelegram">Telegram Benutzername</label>
+            <input type="text" id="profileTelegram" placeholder="DeinTelegramName (ohne @)">
+        </div>
+        <div class="form-actions">
+            <button class="button-primary" onclick="saveProfile()">
+                <i class="fas fa-save"></i> Profil speichern
+            </button>
+        </div>
+    </section>
+</div>
+<main class="wrapper" id="mainSearchView">
+
 
     <main class="wrapper" id="mainSearchView"> <h1>Kleinanzeigen Sniper</h1>
         <div id="userMessages" class="user-messages" style="display:none;"></div>
@@ -143,7 +172,7 @@
                      </select>
                  </div>
              </div>
-             <button class="toggle-filters-button" onclick="toggleFilters()">
+             <button class="toggle-filters-button" onclick="toggleFilters('advanced-filters', this)"></button>
                  <i class="fas fa-filter"></i> Erweiterte Filter <span class="filter-arrow"><i class="fas fa-chevron-down"></i></span>
              </button>
              <div id="advanced-filters" class="hidden">
